@@ -95,10 +95,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'CineGo',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900),
+                    GestureDetector(
+                      // Nhấn giữ chữ CineGo để điền nhanh tài khoản demo
+                      onLongPress: _fillDemo,
+                      child: const Text(
+                        'CineGo',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 30, fontWeight: FontWeight.w900),
+                      ),
                     ),
                     const Text(
                       'Đặt vé xem phim chỉ trong vài chạm',
@@ -136,7 +141,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? const SizedBox(
                               width: 22,
                               height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.5),
                             )
                           : const Text('ĐĂNG NHẬP'),
                     ),
@@ -156,32 +162,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: const Text('Đăng ký ngay'),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 20),
-                    InkWell(
-                      onTap: _fillDemo,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white10),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.info_outline, color: AppColors.primary),
-                            SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Tài khoản demo: demo@hutech.edu.vn / 123456\n'
-                                'Chạm vào đây để điền nhanh',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ],
                 ),
