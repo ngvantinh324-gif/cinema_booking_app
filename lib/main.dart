@@ -9,6 +9,9 @@ import 'screens/profile/login_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
+  // Đảm bảo các dịch vụ nền tảng của Flutter Engine sẵn sàng trước khi chạy app
+  WidgetsFlutterBinding.ensureInitialized();
+
   runApp(
     MultiProvider(
       providers: [
@@ -29,24 +32,32 @@ class CinemaApp extends StatelessWidget {
       title: 'CineGo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
+      // Khi nộp bài/demo đầy đủ: dùng AuthGate()
+      // Nếu muốn test nhanh riêng màn hình của Tính: đổi thành const MainShell()
       home: const AuthGate(),
     );
   }
 }
 
-/// Cổng xác thực: chưa đăng nhập -> LoginScreen (Khôi),
-/// đã đăng nhập -> MainShell (Tính). Tự đổi khi AuthProvider thay đổi.
+/// Cổng xác thực:
+/// - Chưa đăng nhập -> LoginScreen (Khôi)
+/// - Đã đăng nhập -> MainShell (Tính)
+/// Tự động chuyển màn hình mượt mà khi trạng thái người dùng thay đổi.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 400),
-      child: user == null
-          ? const LoginScreen(key: ValueKey('login'))
-          : MainShell(key: ValueKey(user.id)),
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF121420),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 400),
+        child: user == null
+            ? const LoginScreen(key: ValueKey('login'))
+            : MainShell(key: ValueKey(user.id)),
+      ),
     );
   }
 }

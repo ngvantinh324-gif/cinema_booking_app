@@ -1,8 +1,6 @@
 // Người phụ trách: Tính - thanh cong mô phỏng màn hình chiếu
 import 'package:flutter/material.dart';
 
-import '../../../theme/app_theme.dart';
-
 class ScreenCurve extends StatelessWidget {
   const ScreenCurve({super.key});
 
@@ -21,7 +19,7 @@ class ScreenCurve extends StatelessWidget {
         const Text(
           'MÀN HÌNH',
           style: TextStyle(
-            color: AppColors.textSecondary,
+            color: Color(0xFF8ECFFF),
             fontSize: 11,
             letterSpacing: 6,
           ),
@@ -38,17 +36,27 @@ class _ScreenPainter extends CustomPainter {
       ..moveTo(0, size.height)
       ..quadraticBezierTo(size.width / 2, 0, size.width, size.height);
 
-    final glow = Paint()
-      ..color = AppColors.primary.withValues(alpha: 0.55)
+    // Lớp glow ngoài (mờ, lan rộng) - mô phỏng ánh sáng màn chiếu
+    final outerGlow = Paint()
+      ..color = const Color(0x338ECFFF)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-    canvas.drawPath(path, glow);
+      ..strokeWidth = 14
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+    canvas.drawPath(path, outerGlow);
 
-    final line = Paint()
-      ..color = AppColors.primary
+    // Lớp glow trong (đậm hơn)
+    final innerGlow = Paint()
+      ..color = const Color(0x778ECFFF)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
+      ..strokeWidth = 6
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawPath(path, innerGlow);
+
+    // Đường viền chính sắc nét màu trắng xanh
+    final line = Paint()
+      ..color = const Color(0xFFCCE8FF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
     canvas.drawPath(path, line);
   }

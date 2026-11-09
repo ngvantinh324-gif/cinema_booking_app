@@ -81,7 +81,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
         );
       return;
     }
-    HapticFeedback.selectionClick();
+    HapticFeedback.lightImpact();
     setState(() {
       if (!_selected.remove(seat.id)) _selected.add(seat.id);
     });

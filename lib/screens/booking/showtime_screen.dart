@@ -8,6 +8,13 @@ import '../../services/booking_service.dart';
 import '../../theme/app_theme.dart';
 import 'seat_selection_screen.dart';
 
+/// Màu badge cho từng định dạng chiếu
+Color _formatBadgeColor(String format) => switch (format) {
+      'IMAX' => const Color(0xFF00C6FF),
+      '3D' => const Color(0xFFA78BFA),
+      _ => Colors.white38,
+    };
+
 class ShowtimeScreen extends StatefulWidget {
   const ShowtimeScreen({super.key, required this.movie});
 
@@ -234,14 +241,16 @@ class _CinemaCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white38),
+                  color: _formatBadgeColor(first.format).withValues(alpha: 0.15),
+                  border: Border.all(color: _formatBadgeColor(first.format)),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   first.format,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
+                    color: _formatBadgeColor(first.format),
                   ),
                 ),
               ),
@@ -277,6 +286,8 @@ class _CinemaCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: disabled ? Colors.white24 : Colors.white,
                       decoration: disabled ? TextDecoration.lineThrough : null,
+                      decorationColor: Colors.white24,
+                      decorationThickness: 2,
                     ),
                   ),
                 ),
