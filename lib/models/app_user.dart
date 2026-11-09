@@ -19,4 +19,12 @@ class AppUser {
         email: json['email'] as String? ?? '',
         phone: json['phone'] as String? ?? '',
       );
+
+  /// Tạo bản sao với họ tên / SĐT mới (email và id giữ nguyên)
+  AppUser copyWith({String? name, String? phone}) => AppUser(
+        id: id,
+        name: name ?? this.name,
+        email: email,
+        phone: phone ?? this.phone,
+      );
 }

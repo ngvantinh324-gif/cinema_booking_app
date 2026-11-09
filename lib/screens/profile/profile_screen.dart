@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/ticket_provider.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/change_password_sheet.dart';
+import 'widgets/edit_profile_sheet.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -35,6 +36,18 @@ class ProfileScreen extends StatelessWidget {
     if (ok != true || !context.mounted) return;
     context.read<TicketProvider>().clear();
     context.read<AuthProvider>().logout();
+  }
+
+  void _openEditProfile(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => const EditProfileSheet(),
+    );
   }
 
   void _openChangePassword(BuildContext context) {
@@ -117,6 +130,11 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+          _MenuTile(
+            icon: Icons.edit_outlined,
+            title: 'Chỉnh sửa thông tin',
+            onTap: () => _openEditProfile(context),
+          ),
           _MenuTile(
             icon: Icons.lock_outline,
             title: 'Đổi mật khẩu',
