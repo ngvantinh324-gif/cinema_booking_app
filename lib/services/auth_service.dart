@@ -1,4 +1,4 @@
-// Người phụ trách: Khôi - đăng nhập / đăng ký / đổi mật khẩu
+// Người phụ trách: Khôi - đăng nhập / đăng ký / đổi mật khẩu / cập nhật hồ sơ
 import '../data/mock/mock_accounts.dart';
 import '../models/app_user.dart';
 import 'api_config.dart';
@@ -76,6 +76,23 @@ class AuthService {
         }
         acc.password = newPassword;
         return;
+      }
+    }
+    throw const AuthException('Không tìm thấy tài khoản');
+  }
+
+  /// PUT /api/auth/profile
+  Future<AppUser> updateProfile({
+    required String userId,
+    required String name,
+    required String phone,
+  }) async {
+    _ensureMock();
+    await Future.delayed(_delay);
+    for (final acc in mockAccounts) {
+      if (acc.user.id == userId) {
+        acc.user = acc.user.copyWith(name: name.trim(), phone: phone.trim());
+        return acc.user;
       }
     }
     throw const AuthException('Không tìm thấy tài khoản');

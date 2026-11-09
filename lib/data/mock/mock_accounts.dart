@@ -6,7 +6,7 @@
 import '../../models/app_user.dart';
 
 class MockAccount {
-  final AppUser user;
+  AppUser user; // bỏ final để cập nhật được thông tin cá nhân
   String password;
 
   MockAccount(this.user, this.password);

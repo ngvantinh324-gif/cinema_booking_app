@@ -64,6 +64,23 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Cập nhật họ tên & SĐT. Các màn đang watch AuthProvider tự vẽ lại.
+  Future<String?> updateProfile(String name, String phone) async {
+    final user = _user;
+    if (user == null) return 'Bạn chưa đăng nhập';
+    try {
+      _user = await _service.updateProfile(
+        userId: user.id,
+        name: name,
+        phone: phone,
+      );
+      notifyListeners();
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    }
+  }
+
   void logout() {
     _user = null;
     notifyListeners();
