@@ -1,6 +1,6 @@
 // Người phụ trách: Tính (Nhóm trưởng) - các hàm định dạng dùng chung
 
-/// 95000 -> "95.000đ"
+/// 95000 -> "95.000 đ"
 String formatVnd(int amount) {
   final digits = amount.abs().toString();
   final buffer = StringBuffer();
@@ -9,7 +9,7 @@ String formatVnd(int amount) {
     buffer.write(digits[i]);
   }
   final sign = amount < 0 ? '-' : '';
-  return '$sign${buffer.toString()}đ';
+  return '$sign${buffer.toString()} đ';
 }
 
 String pad2(int n) => n.toString().padLeft(2, '0');
