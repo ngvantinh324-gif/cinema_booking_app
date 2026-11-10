@@ -1,61 +1,102 @@
-# CineGo – Ứng dụng đặt vé xem phim (Flutter)
+# CineGo – Ứng dụng đặt vé xem phim
 
-Đồ án môn **Lập trình trên thiết bị di động** – HUTECH. Nhóm 4 người: Tính (nhóm trưởng), Triết, Minh, Khôi.
+Đồ án cuối kỳ học phần **Lập trình trên thiết bị di động (CMP177)** – Trường Đại học Công nghệ TP.HCM (HUTECH).
+Giảng viên phụ trách: ThS. Bùi Phú Khuyên.
 
-Bản này là **Giai đoạn 1**: toàn bộ giao diện chạy được với dữ liệu giả lập (mock), chưa cần backend.
+CineGo cho phép người dùng xem phim đang chiếu / sắp chiếu, chọn suất chiếu, chọn ghế, mua bắp nước, áp dụng mã giảm giá và nhận vé điện tử có mã QR.
 
-## Chạy demo
+## Thành viên nhóm
 
-Yêu cầu: Flutter 3.27 trở lên (kiểm tra bằng `flutter --version`).
+| Họ và tên | MSSV | Phụ trách |
+| --- | --- | --- |
+| Nguyễn Văn Tính (nhóm trưởng) | 2380614852 | Khung ứng dụng, chọn suất chiếu, sơ đồ ghế, cấu hình Supabase |
+| Phạm Minh Triết | 2380605829 | Trang chủ, tìm kiếm, chi tiết phim, TMDB API, trailer |
+| Nguyễn Hoàng Minh | 2380601355 | Bắp nước, thanh toán, mã giảm giá |
+| Phạm Thái Khôi | 2380601102 | Đăng ký / đăng nhập (xác thực email), vé điện tử, lịch sử vé, hồ sơ |
+
+## Công nghệ sử dụng
+
+| Thành phần | Công nghệ |
+| --- | --- |
+| Ứng dụng di động | Flutter / Dart |
+| Quản lý trạng thái | Provider |
+| Backend / API | Supabase (REST API tự sinh) |
+| Cơ sở dữ liệu | PostgreSQL (Supabase), bảo mật bằng Row Level Security |
+| Xác thực | Supabase Auth (đăng ký có xác thực email) |
+| Dữ liệu phim | TMDB API |
+| Thư viện khác | supabase_flutter, qr_flutter, youtube_player_iframe |
+
+Thanh toán trong ứng dụng là **thanh toán giả lập**, không trừ tiền thật. Lịch chiếu được sinh tự động theo ngày.
+
+## Chức năng chính
+
+- Đăng ký tài khoản có gửi email xác nhận, đăng nhập, ghi nhớ phiên đăng nhập
+- Cập nhật họ tên, số điện thoại; đổi mật khẩu; đăng xuất
+- Danh sách phim thật đang chiếu / sắp chiếu từ TMDB; tìm kiếm phim không dấu
+- Chi tiết phim: đạo diễn, diễn viên, nội dung, xem trailer ngay trong ứng dụng
+- Chọn ngày, rạp, suất chiếu (7 ngày tới, theo giờ thực)
+- Sơ đồ ghế 3 loại (thường, VIP, đôi), tính tiền tức thì, chống bán trùng ghế giữa nhiều thiết bị
+- Chọn combo bắp nước, áp dụng mã giảm giá kiểm tra trên máy chủ
+- Vé điện tử có mã QR, lưu trên cơ sở dữ liệu
+- Lịch sử vé: đếm ngược tới giờ chiếu, tự chuyển sang "Đã xem"
+
+## Cách chạy
+
+Yêu cầu: Flutter 3.27 trở lên, máy ảo Android hoặc điện thoại Android.
 
 ```bash
+git clone https://github.com/ngvantinh324-gif/cinema_booking_app.git
 cd cinema_booking_app
-
-# Chỉ chạy 1 lần: sinh thư mục android/ ios/ (không ghi đè code trong lib/)
-flutter create . --org com.hutech --project-name cinema_booking_app --platforms android,ios
-
 flutter pub get
-flutter run
 ```
 
-Tài khoản demo: **demo@hutech.edu.vn / 123456** (màn đăng nhập có nút điền nhanh).
+**Có key TMDB (phim thật):**
 
-Trước khi push code: chạy `flutter analyze` và `flutter test`.
+1. Đăng ký key miễn phí tại https://www.themoviedb.org/settings/api
+2. Copy `tmdb.example.json` thành `tmdb.json` (cùng thư mục với README), dán key vào. File `tmdb.json` đã nằm trong `.gitignore`, **không commit file này**.
+3. Chạy:
 
-### Phim thật từ TMDB (tùy chọn)
+```bash
+flutter run --dart-define-from-file=tmdb.json
+```
 
-Không có key thì app tự dùng phim mock, vẫn chạy bình thường.
+**Không có key TMDB:** chạy `flutter run` bình thường, ứng dụng tự dùng danh sách phim lưu trên Supabase.
 
-1. Lấy API Key (v3) miễn phí tại themoviedb.org → Settings → API.
-2. Chép `tmdb.example.json` thành `tmdb.json` rồi dán key vào. File này đã nằm trong `.gitignore`, **không commit key**.
-3. Chạy: `flutter run --dart-define-from-file=tmdb.json`
-   (Android Studio: Run → Edit Configurations… → main.dart → *Additional run args* điền `--dart-define-from-file=tmdb.json`).
+**Tài khoản demo:** ở màn hình đăng nhập, **nhấn giữ chữ "CineGo"** để điền nhanh tài khoản demo rồi bấm Đăng nhập.
 
-App gọi `api.tmdb.org` vì `api.themoviedb.org` bị nhà mạng ở Việt Nam chặn.
+## Cấu trúc thư mục
 
-## Kịch bản demo trước thầy (khoảng 3 phút)
+```
+lib/
+├── main.dart            Khởi tạo Supabase, Provider, cổng đăng nhập
+├── models/              Movie, Showtime, Seat, BookingData, Combo, Voucher, Ticket, AppUser
+├── services/            Gọi API: Supabase (auth, ghế, vé, combo, mã giảm giá), TMDB (phim)
+├── providers/           AuthProvider, TicketProvider
+├── screens/
+│   ├── home/            Trang chủ, tìm kiếm, chi tiết phim, trailer
+│   ├── booking/         Chọn suất chiếu, sơ đồ ghế
+│   ├── checkout/        Bắp nước, thanh toán, mã giảm giá
+│   └── profile/         Đăng nhập, đăng ký, vé của tôi, vé QR, hồ sơ
+├── widgets/             Widget dùng chung
+└── theme/               Màu sắc, giao diện
+test/                    Unit test và widget test
+```
 
-1. Đăng nhập sai mật khẩu → báo lỗi; nhập email sai định dạng → form báo đỏ ngay.
-2. Đăng nhập bằng tài khoản demo → Trang chủ: banner tự trượt, tab Đang chiếu / Sắp chiếu.
-3. Bấm một phim → hiệu ứng Hero mở trang chi tiết, bấm **ĐẶT VÉ NGAY**.
-4. Chọn ngày, rạp, giờ → sơ đồ ghế: chọn vài ghế thường + VIP + ghế đôi, tổng tiền nhảy theo thời gian thực, có thể zoom sơ đồ.
-5. Chọn combo bắp nước → Thanh toán → **XÁC NHẬN ĐẶT VÉ** → vé điện tử có mã QR.
-6. Quay lại đặt **đúng suất chiếu đó** lần nữa → các ghế vừa mua đã chuyển sang "Đã bán".
-7. Tab **Vé của tôi** → vé mới nằm đầu danh sách. Tab **Tài khoản** → đổi mật khẩu, đăng xuất.
+## Cơ sở dữ liệu (Supabase)
 
-## Phân chia thư mục (mỗi người chỉ sửa file của mình)
-
-| Người | File / thư mục |
+| Bảng | Nội dung |
 | --- | --- |
-| Tính | `main.dart`, `screens/main_shell.dart`, `screens/booking/`, `theme/`, `core/utils/formatters.dart`, `models/showtime.dart`, `models/seat.dart`, `models/booking_data.dart`, `services/api_config.dart`, `services/booking_service.dart`, `data/mock/mock_cinemas.dart` |
-| Triết | `screens/home/`, `models/movie.dart`, `services/movie_service.dart`, `data/mock/mock_movies.dart`, `widgets/movie_poster.dart`, `widgets/age_badge.dart` |
-| Minh | `screens/checkout/`, `models/combo.dart`, `services/checkout_service.dart`, `data/mock/mock_combos.dart` |
-| Khôi | `screens/profile/`, `models/ticket.dart`, `models/app_user.dart`, `providers/`, `services/auth_service.dart`, `services/ticket_service.dart`, `core/utils/validators.dart`, `data/mock/mock_accounts.dart` |
+| `movies` | Danh sách phim dự phòng khi không dùng TMDB |
+| `combos` | Menu bắp nước |
+| `vouchers` | Mã giảm giá (phần trăm, mức giảm tối đa, đơn tối thiểu, hạn dùng) |
+| `booked_seats` | Ghế đã bán; khóa chính (suất chiếu, ghế) chống bán trùng |
+| `tickets` | Vé đã đặt; Row Level Security chỉ cho người dùng xem vé của chính mình |
 
-`models/booking_data.dart` là **hợp đồng dữ liệu chung** của luồng đặt vé: muốn sửa phải báo cả nhóm.
+Ứng dụng chỉ dùng **publishable key** của Supabase (được phép công khai); dữ liệu được bảo vệ bằng Row Level Security.
 
-## Chuyển sang Giai đoạn 2 (gọi API thật)
+## Kiểm thử
 
-1. Thêm package `http` vào `pubspec.yaml`.
-2. Đổi `ApiConfig.useMockData` thành `false` và sửa `baseUrl`.
-3. Mỗi người viết phần gọi API trong service của mình (chỗ đang `throw UnimplementedError`). Màn hình giữ nguyên, không phải sửa.
+```bash
+flutter analyze
+flutter test
+```
