@@ -29,6 +29,19 @@ class Ticket {
 
   bool get isUpcoming => showtime.startTime.isAfter(DateTime.now());
 
+  /// Nhãn đếm ngược tới giờ chiếu, tính theo giờ thực của máy
+  String get countdownLabel {
+    final diff = showtime.startTime.difference(DateTime.now());
+    if (diff.isNegative) return 'Đã chiếu';
+    if (diff.inDays >= 1) {
+      return 'Còn ${diff.inDays} ngày ${diff.inHours % 24} giờ';
+    }
+    if (diff.inHours >= 1) {
+      return 'Còn ${diff.inHours} giờ ${diff.inMinutes % 60} phút';
+    }
+    return 'Còn ${diff.inMinutes} phút';
+  }
+
   String get seatLabel => seats.map((s) => s.id).join(', ');
 
   String get comboLabel =>
