@@ -1,8 +1,9 @@
-// Người phụ trách: Khôi - đăng nhập / đăng ký / đổi mật khẩu / cập nhật hồ sơ
-import '../data/mock/mock_accounts.dart';
-import '../models/app_user.dart';
-import 'api_config.dart';
+// Người phụ trách: Khôi - xác thực bằng Supabase Auth
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
+import '../models/app_user.dart';
+
+/// Lỗi đã được dịch sang tiếng Việt để hiển thị cho người dùng
 class AuthException implements Exception {
   final String message;
 
@@ -16,91 +17,116 @@ class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
 
-  static const Duration _delay = Duration(milliseconds: 800);
+  sb.GoTrueClient get _auth => sb.Supabase.instance.client.auth;
 
-  MockAccount? _findByEmail(String email) {
-    final key = email.trim().toLowerCase();
-    for (final acc in mockAccounts) {
-      if (acc.user.email.toLowerCase() == key) return acc;
-    }
-    return null;
+  /// Phiên đăng nhập đã lưu trên máy (mở lại app không phải đăng nhập lại)
+  AppUser? currentUser() {
+    final user = _auth.currentUser;
+    return user == null ? null : _toAppUser(user);
   }
 
-  /// POST /api/auth/login  -> {token, user}
+  /// POST /auth/v1/token?grant_type=password
   Future<AppUser> login(String email, String password) async {
-    _ensureMock();
-    await Future.delayed(_delay);
-    final acc = _findByEmail(email);
-    // Cùng một thông báo cho cả "sai email" và "sai mật khẩu"
-    // để kẻ xấu không dò được email nào đã đăng ký.
-    if (acc == null || acc.password != password) {
-      throw const AuthException('Email hoặc mật khẩu không đúng');
+    try {
+      final res = await _auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
+      return _toAppUser(res.user!);
+    } on sb.AuthException catch (e) {
+      throw AuthException(_translate(e));
     }
-    return acc.user;
   }
 
-  /// POST /api/auth/register
-  Future<AppUser> register({
+  /// POST /auth/v1/signup. Supabase tự gửi email chứa link xác nhận.
+  /// Trả về null nếu tài khoản phải xác nhận email trước khi đăng nhập.
+  Future<AppUser?> register({
     required String name,
     required String email,
     required String phone,
     required String password,
   }) async {
-    _ensureMock();
-    await Future.delayed(_delay);
-    if (_findByEmail(email) != null) {
-      throw const AuthException('Email này đã được sử dụng');
-    }
-    final user = AppUser(
-      id: 'u${mockAccounts.length + 1}',
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-    );
-    mockAccounts.add(MockAccount(user, password));
-    return user;
-  }
-
-  /// PUT /api/auth/change-password
-  Future<void> changePassword({
-    required String userId,
-    required String currentPassword,
-    required String newPassword,
-  }) async {
-    _ensureMock();
-    await Future.delayed(_delay);
-    for (final acc in mockAccounts) {
-      if (acc.user.id == userId) {
-        if (acc.password != currentPassword) {
-          throw const AuthException('Mật khẩu hiện tại không đúng');
-        }
-        acc.password = newPassword;
-        return;
+    try {
+      final res = await _auth.signUp(
+        email: email.trim(),
+        password: password,
+        data: {'name': name.trim(), 'phone': phone.trim()},
+      );
+      final user = res.user;
+      // Email đã đăng ký: Supabase trả về user không có identity nào
+      if (user != null && (user.identities?.isEmpty ?? false)) {
+        throw const AuthException('Email này đã được sử dụng');
       }
+      if (res.session == null || user == null) return null;
+      return _toAppUser(user);
+    } on sb.AuthException catch (e) {
+      throw AuthException(_translate(e));
     }
-    throw const AuthException('Không tìm thấy tài khoản');
   }
 
-  /// PUT /api/auth/profile
+  /// PUT /auth/v1/user  (lưu họ tên, SĐT vào user_metadata)
   Future<AppUser> updateProfile({
-    required String userId,
     required String name,
     required String phone,
   }) async {
-    _ensureMock();
-    await Future.delayed(_delay);
-    for (final acc in mockAccounts) {
-      if (acc.user.id == userId) {
-        acc.user = acc.user.copyWith(name: name.trim(), phone: phone.trim());
-        return acc.user;
-      }
+    try {
+      final res = await _auth.updateUser(
+        sb.UserAttributes(data: {'name': name.trim(), 'phone': phone.trim()}),
+      );
+      return _toAppUser(res.user!);
+    } on sb.AuthException catch (e) {
+      throw AuthException(_translate(e));
     }
-    throw const AuthException('Không tìm thấy tài khoản');
   }
 
-  void _ensureMock() {
-    if (!ApiConfig.useMockData) {
-      throw UnimplementedError('Chưa kết nối API xác thực');
+  /// Kiểm tra mật khẩu hiện tại bằng cách đăng nhập lại, rồi mới đổi.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = _auth.currentUser?.email;
+    if (email == null) throw const AuthException('Bạn chưa đăng nhập');
+    try {
+      await _auth.signInWithPassword(email: email, password: currentPassword);
+    } on sb.AuthException {
+      throw const AuthException('Mật khẩu hiện tại không đúng');
     }
+    try {
+      await _auth.updateUser(sb.UserAttributes(password: newPassword));
+    } on sb.AuthException catch (e) {
+      throw AuthException(_translate(e));
+    }
+  }
+
+  Future<void> logout() => _auth.signOut();
+
+  AppUser _toAppUser(sb.User u) {
+    final meta = u.userMetadata ?? const <String, dynamic>{};
+    final email = u.email ?? '';
+    return AppUser(
+      id: u.id,
+      name: meta['name'] as String? ?? email.split('@').first,
+      email: email,
+      phone: meta['phone'] as String? ?? '',
+    );
+  }
+
+  String _translate(sb.AuthException e) {
+    final m = e.message.toLowerCase();
+    if (m.contains('invalid login credentials')) {
+      // Báo chung để kẻ xấu không dò được email nào đã đăng ký
+      return 'Email hoặc mật khẩu không đúng';
+    }
+    if (m.contains('not confirmed')) {
+      return 'Email chưa được xác nhận. Hãy mở email và bấm vào link xác nhận';
+    }
+    if (m.contains('already registered')) return 'Email này đã được sử dụng';
+    if (m.contains('rate limit') || e.statusCode == '429') {
+      return 'Gửi email quá nhiều lần, vui lòng thử lại sau';
+    }
+    if (m.contains('should be different')) {
+      return 'Mật khẩu mới phải khác mật khẩu cũ';
+    }
+    return 'Lỗi xác thực: ${e.message}';
   }
 }

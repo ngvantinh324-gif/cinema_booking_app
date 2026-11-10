@@ -1,29 +1,31 @@
 // Người phụ trách: Triết
-import '../data/mock/mock_movies.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/movie.dart';
-import 'api_config.dart';
 
 class MovieService {
   MovieService._();
   static final MovieService instance = MovieService._();
 
-  /// GET /api/movies?status=now_showing|coming_soon
+  SupabaseClient get _db => Supabase.instance.client;
+
+  /// Lấy danh sách phim từ bảng `movies`.
+  /// REST: GET /rest/v1/movies?select=*&status=eq.now_showing&order=release_date.desc
   Future<List<Movie>> getMovies({MovieStatus? status}) async {
-    if (ApiConfig.useMockData) {
-      await Future.delayed(ApiConfig.mockDelay);
-      if (status == null) return List<Movie>.of(mockMovies);
-      return mockMovies.where((m) => m.status == status).toList();
+    var query = _db.from('movies').select();
+    if (status != null) {
+      query = query.eq(
+        'status',
+        status == MovieStatus.comingSoon ? 'coming_soon' : 'now_showing',
+      );
     }
-    // Giai đoạn 2: gọi http.get('${ApiConfig.baseUrl}/movies') rồi Movie.fromJson
-    throw UnimplementedError('Chưa kết nối API phim');
+    final rows = await query.order('release_date', ascending: false);
+    return rows.map(Movie.fromJson).toList();
   }
 
-  /// GET /api/movies/:id
+  /// REST: GET /rest/v1/movies?select=*&id=eq.<id>
   Future<Movie?> getMovieById(String id) async {
-    final movies = await getMovies();
-    for (final m in movies) {
-      if (m.id == id) return m;
-    }
-    return null;
+    final row = await _db.from('movies').select().eq('id', id).maybeSingle();
+    return row == null ? null : Movie.fromJson(row);
   }
 }

@@ -16,8 +16,8 @@ class Movie {
   final List<String> cast;
   final String description;
   final String? trailerUrl;
-  final String? posterUrl; // Giai đoạn 2: ảnh thật từ API
-  final List<Color> posterColors; // Giai đoạn 1: poster giả lập bằng gradient
+  final String? posterUrl;
+  final List<Color> posterColors;
   final String emoji;
 
   const Movie({
@@ -45,13 +45,16 @@ class Movie {
 
   String get genreText => genres.join(', ');
 
-  /// Dùng ở giai đoạn 2 khi nhận JSON từ GET /api/movies
+  /// Chuyển một dòng của bảng `movies` (Supabase trả về JSON) thành Movie.
   factory Movie.fromJson(Map<String, dynamic> json) {
+    final colors = (json['poster_colors'] as List? ?? const [])
+        .map((h) => _parseHex(h.toString()))
+        .toList();
     return Movie(
       id: json['id'].toString(),
       title: json['title'] as String? ?? '',
       genres: List<String>.from(json['genres'] as List? ?? const []),
-      durationMinutes: json['duration'] as int? ?? 0,
+      durationMinutes: (json['duration'] as num?)?.toInt() ?? 0,
       ageRating: json['age_rating'] as String? ?? 'P',
       rating: (json['rating'] as num?)?.toDouble() ?? 0,
       status: json['status'] == 'coming_soon'
@@ -60,10 +63,20 @@ class Movie {
       releaseDate: DateTime.tryParse(json['release_date']?.toString() ?? '') ??
           DateTime.now(),
       director: json['director'] as String? ?? '',
-      cast: List<String>.from(json['cast'] as List? ?? const []),
+      cast: List<String>.from(
+        json['actors'] as List? ?? json['cast'] as List? ?? const [],
+      ),
       description: json['description'] as String? ?? '',
       trailerUrl: json['trailer'] as String?,
       posterUrl: json['poster'] as String?,
+      posterColors: colors.length >= 2
+          ? colors
+          : const [Color(0xFF2C3E50), Color(0xFF000000)],
+      emoji: json['emoji'] as String? ?? '🎬',
     );
   }
+
+  /// "#D35400" -> Color(0xFFD35400)
+  static Color _parseHex(String hex) =>
+      Color(int.parse(hex.replaceFirst('#', ''), radix: 16) | 0xFF000000);
 }
