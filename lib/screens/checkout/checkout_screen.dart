@@ -1,4 +1,5 @@
 // Người phụ trách: Minh - xác nhận đơn & thanh toán giả lập
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -16,19 +17,53 @@ import '../../widgets/movie_poster.dart';
 import '../profile/ticket_detail_screen.dart';
 
 class _PayMethod {
-  const _PayMethod(this.id, this.label, this.icon, this.color);
+  const _PayMethod(
+    this.id,
+    this.label,
+    this.subtitle,
+    this.icon,
+    this.color, {
+    this.badge,
+  });
 
   final String id;
   final String label;
+  final String subtitle;
   final IconData icon;
   final Color color;
+  final String? badge;
 }
 
 const List<_PayMethod> _methods = [
-  _PayMethod('momo', 'Ví MoMo', Icons.account_balance_wallet, Color(0xFFD82D8B)),
-  _PayMethod('zalopay', 'ZaloPay', Icons.qr_code_2, Color(0xFF0068FF)),
-  _PayMethod('card', 'Thẻ ATM / Visa / Master', Icons.credit_card, Color(0xFF7B61FF)),
-  _PayMethod('cash', 'Tiền mặt tại quầy', Icons.payments_outlined, Color(0xFF2ECC71)),
+  _PayMethod(
+    'momo',
+    'Ví MoMo',
+    'Liên kết nhanh • Xác nhận tức thì',
+    Icons.account_balance_wallet_rounded,
+    Color(0xFFD82D8B),
+    badge: 'Phổ biến',
+  ),
+  _PayMethod(
+    'zalopay',
+    'ZaloPay',
+    'Quét mã QR hoặc chuyển khoản ví',
+    Icons.qr_code_2_rounded,
+    Color(0xFF0068FF),
+  ),
+  _PayMethod(
+    'card',
+    'Thẻ ATM / Visa / Master',
+    'Hỗ trợ thẻ ngân hàng nội địa & quốc tế',
+    Icons.credit_card_rounded,
+    Color(0xFF7B61FF),
+  ),
+  _PayMethod(
+    'cash',
+    'Tiền mặt tại quầy',
+    'Giữ vé trước • Thanh toán tại quầy CineGo',
+    Icons.payments_rounded,
+    Color(0xFF2ECC71),
+  ),
 ];
 
 class CheckoutScreen extends StatefulWidget {
@@ -44,13 +79,45 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _methodId = _methods.first.id;
   bool _processing = false;
 
-  String get _methodLabel =>
-      _methods.firstWhere((m) => m.id == _methodId).label;
+  // Đồng hồ đếm ngược thời gian giữ ghế (10 phút)
+  Timer? _holdTimer;
+  int _remainingSeconds = 600;
+
+  _PayMethod get _selectedMethod =>
+      _methods.firstWhere((m) => m.id == _methodId);
+
+  String get _methodLabel => _selectedMethod.label;
+
+  @override
+  void initState() {
+    super.initState();
+    _holdTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      if (_remainingSeconds > 0) {
+        setState(() => _remainingSeconds--);
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  String get _formattedHoldTime {
+    final m = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (_remainingSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
   Future<void> _confirm() async {
     final user = context.read<AuthProvider>().currentUser;
     if (user == null) return;
 
+    HapticFeedback.mediumImpact();
     setState(() => _processing = true);
     try {
       final ticket = await CheckoutService.instance.bookTicket(
@@ -75,15 +142,31 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Ghế đã có người đặt'),
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.event_busy_rounded, color: Colors.redAccent),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Ghế đã có người đặt',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
           content: Text(
             'Ghế ${e.seatIds.join(', ')} vừa được người khác đặt. '
             'Vui lòng chọn ghế khác.',
+            style: const TextStyle(color: Colors.white70, height: 1.4),
           ),
           actions: [
-            TextButton(
+            ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Chọn lại'),
+              child: const Text('Chọn lại ghế'),
             ),
           ],
         ),
@@ -108,164 +191,154 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return PopScope(
       canPop: !_processing,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Thanh toán')),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            _MovieSummary(booking: b),
-            const SizedBox(height: 16),
-            _Section(
-              child: Column(
+        appBar: AppBar(
+          centerTitle: true,
+          title: const Column(
+            children: [
+              Text(
+                'Thanh toán',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Bước 3/3 • Kiểm tra thông tin vé',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ExpansionTile(
-                    initiallyExpanded: true,
-                    shape: const Border(),
-                    collapsedShape: const Border(),
-                    tilePadding: EdgeInsets.zero,
-                    title: Text('Vé xem phim (${b.seats.length})'),
-                    subtitle: Text(
-                      formatVnd(b.ticketTotal),
-                      style: const TextStyle(color: AppColors.primary),
-                    ),
-                    children: b.seats
-                        .map((s) => _LineItem(
-                              label: 'Ghế ${s.id} (${seatTypeLabel(s.type)})',
-                              value: formatVnd(s.price),
-                            ))
-                        .toList(),
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 14,
+                    color: AppColors.primary,
                   ),
-                  if (b.combos.isNotEmpty)
-                    ExpansionTile(
-                      shape: const Border(),
-                      collapsedShape: const Border(),
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('Bắp nước'),
-                      subtitle: Text(
-                        formatVnd(b.comboTotal),
-                        style: const TextStyle(color: AppColors.primary),
-                      ),
-                      children: b.combos
-                          .map((c) => _LineItem(
-                                label: '${c.quantity} x ${c.combo.name}',
-                                value: formatVnd(c.subtotal),
-                              ))
-                          .toList(),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formattedHoldTime,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
                     ),
-                  const Divider(height: 24),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Tổng thanh toán',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        formatVnd(b.grandTotal),
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Phương thức thanh toán',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            ..._methods.map((m) => _PayTile(
-                  method: m,
-                  selected: m.id == _methodId,
-                  onTap: _processing
-                      ? null
-                      : () => setState(() => _methodId = m.id),
-                )),
-            const SizedBox(height: 8),
-            const Row(
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+          children: [
+            // Thẻ thông tin vé phong cách cuống vé điện tử
+            _MovieSummary(booking: b),
+            const SizedBox(height: 18),
+
+            // Chi tiết hóa đơn thanh toán
+            _OrderBreakdownCard(booking: b),
+            const SizedBox(height: 22),
+
+            // Tiêu đề phương thức thanh toán
+            Row(
               children: [
-                Icon(Icons.info_outline,
-                    size: 16, color: AppColors.textSecondary),
-                SizedBox(width: 6),
-                Expanded(
+                Container(
+                  width: 4,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
                   child: Text(
-                    'Thanh toán giả lập cho đồ án, không trừ tiền thật.',
+                    'Phương thức thanh toán',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w800,
                     ),
+                  ),
+                ),
+                const Text(
+                  'Chọn 1 phương thức',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+
+            // Danh sách phương thức thanh toán
+            ..._methods.map(
+              (m) => _PayTile(
+                method: m,
+                selected: m.id == _methodId,
+                onTap: _processing
+                    ? null
+                    : () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _methodId = m.id);
+                      },
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // Ghi chú bảo mật & thanh toán giả lập
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.verified_user_outlined,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Thanh toán giả lập an toàn cho đồ án, không trừ tiền thật.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
-        bottomNavigationBar: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: ElevatedButton(
-              onPressed: _processing ? null : _confirm,
-              child: _processing
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    )
-                  : Text('XÁC NHẬN ĐẶT VÉ • ${formatVnd(b.grandTotal)}'),
-            ),
-          ),
+        bottomNavigationBar: _BottomCheckoutBar(
+          grandTotal: b.grandTotal,
+          selectedMethod: _selectedMethod,
+          processing: _processing,
+          onConfirm: _confirm,
         ),
-      ),
-    );
-  }
-}
-
-class _Section extends StatelessWidget {
-  const _Section({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _LineItem extends StatelessWidget {
-  const _LineItem({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ),
-          Text(value),
-        ],
       ),
     );
   }
@@ -280,64 +353,511 @@ class _MovieSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = booking.showtime;
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 76,
-              height: 108,
-              child: MoviePoster(movie: booking.movie, emojiSize: 32),
-            ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.07),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+        ],
+      ),
+      child: Column(
+        children: [
+          // Phần trên: Poster + thông tin suất chiếu
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  booking.movie.title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: SizedBox(
+                      width: 82,
+                      height: 116,
+                      child: MoviePoster(movie: booking.movie, emojiSize: 34),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    AgeBadge(rating: booking.movie.ageRating, small: true),
-                    const SizedBox(width: 6),
-                    Text(
-                      s.format,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${s.cinema.name} • ${s.room}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${formatTime(s.startTime)} • ${weekdayLabel(s.startTime)}, ${formatDate(s.startTime)}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Ghế: ${booking.seatLabel}',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        booking.movie.title,
+                        style: const TextStyle(
+                          fontSize: 17.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          AgeBadge(
+                              rating: booking.movie.ageRating, small: true),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.14),
+                              ),
+                            ),
+                            child: Text(
+                              s.format,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              '${s.cinema.name} • ${s.room}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.access_time_rounded,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              '${formatTime(s.startTime)} • ${weekdayLabel(s.startTime)}, ${formatDate(s.startTime)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
+            ),
+          ),
+
+          // Đường cắt cuống vé (Ticket Perforation)
+          const _TicketPerforationDivider(),
+
+          // Phần dưới: Tóm tắt ghế ngồi
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.event_seat_rounded,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Vị trí ghế đã chọn',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        'Ghế: ${booking.seatLabel}',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${booking.seats.length} vé',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TicketPerforationDivider extends StatelessWidget {
+  const _TicketPerforationDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 18,
+      child: Row(
+        children: [
+          Container(
+            width: 9,
+            height: 18,
+            decoration: const BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.horizontal(
+                right: Radius.circular(12),
+              ),
+            ),
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final dashCount = (constraints.maxWidth / 10).floor();
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(
+                    dashCount,
+                    (_) => Container(
+                      width: 5,
+                      height: 1.2,
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            width: 9,
+            height: 18,
+            decoration: const BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.horizontal(
+                left: Radius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderBreakdownCard extends StatelessWidget {
+  const _OrderBreakdownCard({required this.booking});
+
+  final BookingData booking;
+
+  @override
+  Widget build(BuildContext context) {
+    final b = booking;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.07),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Chi tiết Vé xem phim
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: true,
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.confirmation_number_outlined,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+              ),
+              title: Text(
+                'Vé xem phim (${b.seats.length})',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
+                ),
+              ),
+              subtitle: Text(
+                formatVnd(b.ticketTotal),
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: b.seats
+                        .map(
+                          (s) => _LineItem(
+                            label: 'Ghế ${s.id}',
+                            badge: seatTypeLabel(s.type),
+                            value: formatVnd(s.price),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Chi tiết Bắp nước (nếu có chọn)
+          if (b.combos.isNotEmpty) ...[
+            Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
+            Theme(
+              data:
+                  Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB75E).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.fastfood_outlined,
+                    color: Color(0xFFFFB75E),
+                    size: 18,
+                  ),
+                ),
+                title: Text(
+                  'Bắp nước (${b.combos.fold<int>(0, (sum, c) => sum + c.quantity)})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.5,
+                  ),
+                ),
+                subtitle: Text(
+                  formatVnd(b.comboTotal),
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: b.combos
+                          .map(
+                            (c) => _LineItem(
+                              leadingEmoji: c.combo.emoji,
+                              label: c.combo.name,
+                              badge: 'x${c.quantity}',
+                              value: formatVnd(c.subtotal),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Divider(
+              height: 1,
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+
+          // Tổng cộng
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tổng thanh toán',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Đã bao gồm thuế VAT',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                formatVnd(b.grandTotal),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LineItem extends StatelessWidget {
+  const _LineItem({
+    required this.label,
+    required this.value,
+    this.badge,
+    this.leadingEmoji,
+  });
+
+  final String label;
+  final String value;
+  final String? badge;
+  final String? leadingEmoji;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          if (leadingEmoji != null) ...[
+            Text(leadingEmoji!, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (badge != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                badge!,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: Colors.white,
             ),
           ),
         ],
@@ -361,39 +881,258 @@ class _PayTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected ? AppColors.primary : Colors.white10,
-              width: selected ? 1.6 : 1,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: selected ? 1.0 : 0.78,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              gradient: selected
+                  ? LinearGradient(
+                      colors: [
+                        AppColors.surface,
+                        AppColors.primary.withValues(alpha: 0.10),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    )
+                  : null,
+              color: selected ? null : AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected
+                    ? AppColors.primary
+                    : Colors.white.withValues(alpha: 0.08),
+                width: selected ? 1.6 : 1.0,
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.14),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: method.color,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: method.color.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(method.icon, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              method.label,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (method.badge != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                method.badge!,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        method.subtitle,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: selected ? AppColors.primary : Colors.transparent,
+                    border: Border.all(
+                      color: selected ? AppColors.primary : Colors.white30,
+                      width: 2,
+                    ),
+                  ),
+                  child: selected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 14,
+                          color: Colors.black,
+                        )
+                      : null,
+                ),
+              ],
             ),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: method.color,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(method.icon, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Text(method.label)),
-              Icon(
-                selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: selected ? AppColors.primary : Colors.white38,
-              ),
-            ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomCheckoutBar extends StatelessWidget {
+  const _BottomCheckoutBar({
+    required this.grandTotal,
+    required this.selectedMethod,
+    required this.processing,
+    required this.onConfirm,
+  });
+
+  final int grandTotal;
+  final _PayMethod selectedMethod;
+  final bool processing;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
           ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  selectedMethod.icon,
+                  size: 15,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Thanh toán qua ${selectedMethod.label}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  formatVnd(grandTotal),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: processing ? null : onConfirm,
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: processing
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: Colors.black,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'ĐANG XỬ LÝ GIAO DỊCH...',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.lock_rounded, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'XÁC NHẬN ĐẶT VÉ • ${formatVnd(grandTotal)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );
