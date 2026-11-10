@@ -153,7 +153,8 @@ class _TicketTile extends StatelessWidget {
                     Icons.schedule,
                     '${formatTime(s.startTime)} • ${formatDate(s.startTime)}',
                   ),
-                  _IconLine(Icons.event_seat_outlined, 'Ghế ${ticket.seatLabel}'),
+                  _IconLine(
+                      Icons.event_seat_outlined, 'Ghế ${ticket.seatLabel}'),
                   const SizedBox(height: 4),
                   Text(
                     'Mã vé: ${ticket.id}',
@@ -162,6 +163,27 @@ class _TicketTile extends StatelessWidget {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (ticket.isUpcoming) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.timer_outlined,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          ticket.countdownLabel,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
