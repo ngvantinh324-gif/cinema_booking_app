@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('formatVnd định dạng tiền Việt', () {
-    expect(formatVnd(95000), '95.000đ');
-    expect(formatVnd(1250000), '1.250.000đ');
-    expect(formatVnd(0), '0đ');
+    expect(formatVnd(95000), '95.000 đ');
+    expect(formatVnd(1250000), '1.250.000 đ');
+    expect(formatVnd(0), '0 đ');
   });
 
   test('Validators kiểm tra email và mật khẩu', () {
