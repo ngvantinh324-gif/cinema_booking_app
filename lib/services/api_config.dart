@@ -3,14 +3,18 @@
 class ApiConfig {
   ApiConfig._();
 
-  /// true  = Giai đoạn 1: dùng dữ liệu giả lập trong lib/data/mock
-  /// false = Giai đoạn 2: gọi REST API thật bằng package http
+  /// Backend: Supabase (PostgreSQL + REST API tự sinh + Authentication).
+  /// Lấy ở Supabase Dashboard -> Project Settings -> API Keys.
+  static const String supabaseUrl = 'https://tnsebitpvzkfcxcsljku.supabase.co';
+
+  /// CHỈ dán Publishable key (sb_publishable_...). Key này được phép nằm
+  /// trong app vì dữ liệu đã được bảo vệ bằng Row Level Security.
+  /// TUYỆT ĐỐI không dán Secret key / service_role key.
+  static const String supabaseKey = 'sb_publishable_0cvsdV3ScVznebLSjlSAvw_q7eEBtYM';
+
+  /// Cờ cũ của giai đoạn 1. Các service đã chuyển sang Supabase không dùng
+  /// cờ này nữa; giữ lại để code cũ chưa cập nhật vẫn biên dịch được.
   static const bool useMockData = true;
 
-  /// 10.0.2.2 là địa chỉ máy tính khi chạy trên Android Emulator.
-  /// Chạy trên điện thoại thật thì đổi thành IP LAN của máy chạy server.
-  static const String baseUrl = 'http://10.0.2.2:3000/api';
-
-  /// Giả lập độ trễ mạng để thấy loading indicator
   static const Duration mockDelay = Duration(milliseconds: 500);
 }

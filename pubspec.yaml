@@ -15,8 +15,9 @@ dependencies:
   firebase_core: ^5.1.0
   firebase_auth: ^7.0.1
   cloud_firestore: ^7.1.0
-  http: ^1.6.0
+  supabase_flutter: ^2.18.3
   url_launcher: ^6.3.3
+  http: ^1.6.0
   youtube_player_iframe: ^6.0.2
   webview_flutter: ^4.14.1
 

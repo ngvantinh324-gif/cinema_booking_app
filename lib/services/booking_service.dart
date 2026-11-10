@@ -1,10 +1,11 @@
 // Người phụ trách: Tính (Nhóm trưởng) - lịch chiếu & sơ đồ ghế
 import 'dart:math';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../data/mock/mock_cinemas.dart';
 import '../models/seat.dart';
 import '../models/showtime.dart';
-import 'api_config.dart';
 
 class SeatConflictException implements Exception {
   final List<String> seatIds;
@@ -19,8 +20,7 @@ class BookingService {
   BookingService._();
   static final BookingService instance = BookingService._();
 
-  // Ghế đã bán theo từng suất chiếu (mô phỏng bảng dữ liệu trên server)
-  final Map<String, Set<String>> _bookedSeats = {};
+  SupabaseClient get _db => Supabase.instance.client;
 
   static const List<String> _normalRows = ['A', 'B', 'C', 'D'];
   static const List<String> _vipRows = ['E', 'F', 'G'];
@@ -28,36 +28,43 @@ class BookingService {
   static const int seatsPerRow = 10;
   static const int coupleSeats = 5;
 
-  /// GET /api/showtimes?movie_id=..&date=..
+  /// Lịch chiếu được sinh tự động theo ngày (7 ngày tới, theo giờ thiết bị).
   Future<List<Showtime>> getShowtimes(String movieId, DateTime date) async {
-    if (ApiConfig.useMockData) {
-      await Future.delayed(const Duration(milliseconds: 350));
-      return generateMockShowtimes(movieId, date);
-    }
-    throw UnimplementedError('Chưa kết nối API lịch chiếu');
+    await Future.delayed(const Duration(milliseconds: 200));
+    return generateMockShowtimes(movieId, date);
   }
 
-  /// GET /api/seats?showtime_id=..
+  /// Sơ đồ ghế: ghế đã bán lấy từ bảng `booked_seats` trên Supabase.
+  /// REST: `GET /rest/v1/booked_seats?select=seat_id&showtime_id=eq.<id>`
   Future<SeatLayout> getSeatLayout(String showtimeId) async {
-    if (ApiConfig.useMockData) {
-      await Future.delayed(ApiConfig.mockDelay);
-      final booked = _bookedFor(showtimeId);
-      return SeatLayout(rows: _buildRows(), bookedSeatIds: Set<String>.of(booked));
+    final rows = await _db
+        .from('booked_seats')
+        .select('seat_id')
+        .eq('showtime_id', showtimeId);
+    final booked = <String>{
+      ..._walkInSeats(showtimeId),
+      for (final row in rows) row['seat_id'] as String,
+    };
+    return SeatLayout(rows: _buildRows(), bookedSeatIds: booked);
+  }
+
+  /// Khóa ghế khi đặt vé.
+  /// REST: `POST /rest/v1/booked_seats`. Khóa chính (showtime_id, seat_id)
+  /// đảm bảo 2 người không thể mua trùng 1 ghế: ai đến sau sẽ bị lỗi 23505.
+  Future<void> reserveSeats(String showtimeId, List<String> seatIds) async {
+    final walkIn = _walkInSeats(showtimeId);
+    final clash = seatIds.where(walkIn.contains).toList();
+    if (clash.isNotEmpty) throw SeatConflictException(clash);
+
+    try {
+      await _db.from('booked_seats').insert([
+        for (final id in seatIds) {'showtime_id': showtimeId, 'seat_id': id},
+      ]);
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') throw SeatConflictException(seatIds);
+      rethrow;
     }
-    throw UnimplementedError('Chưa kết nối API sơ đồ ghế');
   }
-
-  /// Mô phỏng phía SERVER khi đặt vé: kiểm tra lại & khóa ghế.
-  /// Nếu ghế vừa bị người khác mua -> ném lỗi (tương đương HTTP 409 Conflict).
-  void reserveSeats(String showtimeId, List<String> seatIds) {
-    final booked = _bookedFor(showtimeId);
-    final conflicts = seatIds.where(booked.contains).toList();
-    if (conflicts.isNotEmpty) throw SeatConflictException(conflicts);
-    booked.addAll(seatIds);
-  }
-
-  Set<String> _bookedFor(String showtimeId) =>
-      _bookedSeats.putIfAbsent(showtimeId, () => _randomBooked(showtimeId));
 
   List<List<Seat>> _buildRows() {
     final rows = <List<Seat>>[];
@@ -80,12 +87,13 @@ class BookingService {
     return rows;
   }
 
-  Set<String> _randomBooked(String showtimeId) {
+  /// Một ít ghế "khách mua tại quầy" để sơ đồ trông giống rạp thật.
+  Set<String> _walkInSeats(String showtimeId) {
     final rnd = Random(showtimeId.hashCode);
     final all = <String>[
       for (final seatRow in _buildRows())
         for (final seat in seatRow) seat.id,
     ]..shuffle(rnd);
-    return all.take(8 + rnd.nextInt(10)).toSet();
+    return all.take(4 + rnd.nextInt(6)).toSet();
   }
 }

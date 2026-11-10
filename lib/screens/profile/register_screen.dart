@@ -41,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final error = await context.read<AuthProvider>().register(
+    final result = await context.read<AuthProvider>().register(
           name: _nameCtrl.text,
           email: _emailCtrl.text,
           phone: _phoneCtrl.text,
@@ -49,13 +49,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    if (error != null) {
+
+    if (result.error != null) {
       messenger.showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: AppColors.error),
+        SnackBar(content: Text(result.error!), backgroundColor: AppColors.error),
       );
       return;
     }
-    // Đăng ký xong là đã đăng nhập -> đóng màn này, AuthGate hiện MainShell
+
+    if (result.needsConfirm) {
+      // Supabase đã gửi email chứa link xác nhận
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(
+            Icons.mark_email_read_outlined,
+            size: 44,
+            color: AppColors.primary,
+          ),
+          title: const Text('Kiểm tra email của bạn'),
+          content: Text(
+            'Đã gửi link xác nhận tới ${_emailCtrl.text.trim()}.\n'
+            'Hãy mở email, bấm vào link xác nhận rồi quay lại đăng nhập.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(); // quay về màn đăng nhập
+      return;
+    }
+
+    // Trường hợp project tắt xác nhận email: đăng nhập luôn
     Navigator.of(context).pop();
     messenger.showSnackBar(
       const SnackBar(content: Text('Đăng ký thành công, chào mừng bạn!')),
@@ -77,7 +107,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Điền thông tin để bắt đầu đặt vé',
+                  'Điền thông tin để bắt đầu đặt vé. Bạn sẽ nhận email xác nhận '
+                  'sau khi đăng ký.',
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 20),
@@ -90,7 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 14),
                 AuthTextField(
                   controller: _emailCtrl,
-                  label: 'Email',
+                  label: 'Email (dùng email thật)',
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
                   validator: Validators.email,

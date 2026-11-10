@@ -5,6 +5,11 @@ import '../models/app_user.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
+  AuthProvider() {
+    // Khôi phục phiên đăng nhập đã lưu trên máy
+    _user = _service.currentUser();
+  }
+
   final AuthService _service = AuthService.instance;
 
   AppUser? _user;
@@ -22,12 +27,16 @@ class AuthProvider extends ChangeNotifier {
       return null;
     } on AuthException catch (e) {
       return e.message;
+    } catch (_) {
+      return 'Không kết nối được máy chủ, kiểm tra lại mạng';
     } finally {
       _setLoading(false);
     }
   }
 
-  Future<String?> register({
+  /// error: thông báo lỗi (nếu có)
+  /// needsConfirm: true nếu phải mở email xác nhận rồi mới đăng nhập được
+  Future<({String? error, bool needsConfirm})> register({
     required String name,
     required String email,
     required String phone,
@@ -35,26 +44,27 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _setLoading(true);
     try {
-      _user = await _service.register(
+      final user = await _service.register(
         name: name,
         email: email,
         phone: phone,
         password: password,
       );
-      return null;
+      if (user != null) _user = user;
+      return (error: null, needsConfirm: user == null);
     } on AuthException catch (e) {
-      return e.message;
+      return (error: e.message, needsConfirm: false);
+    } catch (_) {
+      return (error: 'Không kết nối được máy chủ', needsConfirm: false);
     } finally {
       _setLoading(false);
     }
   }
 
   Future<String?> changePassword(String current, String newPassword) async {
-    final user = _user;
-    if (user == null) return 'Bạn chưa đăng nhập';
+    if (_user == null) return 'Bạn chưa đăng nhập';
     try {
       await _service.changePassword(
-        userId: user.id,
         currentPassword: current,
         newPassword: newPassword,
       );
@@ -66,14 +76,9 @@ class AuthProvider extends ChangeNotifier {
 
   /// Cập nhật họ tên & SĐT. Các màn đang watch AuthProvider tự vẽ lại.
   Future<String?> updateProfile(String name, String phone) async {
-    final user = _user;
-    if (user == null) return 'Bạn chưa đăng nhập';
+    if (_user == null) return 'Bạn chưa đăng nhập';
     try {
-      _user = await _service.updateProfile(
-        userId: user.id,
-        name: name,
-        phone: phone,
-      );
+      _user = await _service.updateProfile(name: name, phone: phone);
       notifyListeners();
       return null;
     } on AuthException catch (e) {
@@ -82,6 +87,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void logout() {
+    _service.logout();
     _user = null;
     notifyListeners();
   }
