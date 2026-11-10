@@ -709,68 +709,11 @@ class _OrderBreakdownCard extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.07),
         ),
       ),
-      child: Column(
-        children: [
-          // Chi tiết Vé xem phim
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              initiallyExpanded: true,
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: const EdgeInsets.only(bottom: 8),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.confirmation_number_outlined,
-                  color: AppColors.primary,
-                  size: 18,
-                ),
-              ),
-              title: Text(
-                'Vé xem phim (${b.seats.length})',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14.5,
-                ),
-              ),
-              subtitle: Text(
-                formatVnd(b.ticketTotal),
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-              children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: b.seats
-                        .map(
-                          (s) => _LineItem(
-                            label: 'Ghế ${s.id}',
-                            badge: seatTypeLabel(s.type),
-                            value: formatVnd(s.price),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Chi tiết Bắp nước (nếu có chọn)
-          if (b.combos.isNotEmpty) ...[
-            Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          children: [
+            // Chi tiết Vé xem phim
             Theme(
               data:
                   Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -781,24 +724,24 @@ class _OrderBreakdownCard extends StatelessWidget {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFB75E).withValues(alpha: 0.15),
+                    color: AppColors.primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
-                    Icons.fastfood_outlined,
-                    color: Color(0xFFFFB75E),
+                    Icons.confirmation_number_outlined,
+                    color: AppColors.primary,
                     size: 18,
                   ),
                 ),
                 title: Text(
-                  'Bắp nước (${b.combos.fold<int>(0, (sum, c) => sum + c.quantity)})',
+                  'Vé xem phim (${b.seats.length})',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14.5,
                   ),
                 ),
                 subtitle: Text(
-                  formatVnd(b.comboTotal),
+                  formatVnd(b.ticketTotal),
                   style: const TextStyle(
                     color: AppColors.primary,
                     fontWeight: FontWeight.w700,
@@ -813,13 +756,12 @@ class _OrderBreakdownCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
-                      children: b.combos
+                      children: b.seats
                           .map(
-                            (c) => _LineItem(
-                              leadingEmoji: c.combo.emoji,
-                              label: c.combo.name,
-                              badge: 'x${c.quantity}',
-                              value: formatVnd(c.subtotal),
+                            (s) => _LineItem(
+                              label: 'Ghế ${s.id}',
+                              badge: seatTypeLabel(s.type),
+                              value: formatVnd(s.price),
                             ),
                           )
                           .toList(),
@@ -828,84 +770,146 @@ class _OrderBreakdownCard extends StatelessWidget {
                 ],
               ),
             ),
-          ],
 
-          // Dòng giảm giá (nếu đã áp dụng mã)
-          if (voucher != null && discount > 0) ...[
-            Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(
-                  Icons.local_offer_outlined,
-                  size: 18,
-                  color: AppColors.success,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Giảm giá (${voucher!.code})',
+            // Chi tiết Bắp nước (nếu có chọn)
+            if (b.combos.isNotEmpty) ...[
+              Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
+              Theme(
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  initiallyExpanded: true,
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(bottom: 8),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB75E).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.fastfood_outlined,
+                      color: Color(0xFFFFB75E),
+                      size: 18,
+                    ),
+                  ),
+                  title: Text(
+                    'Bắp nước (${b.combos.fold<int>(0, (sum, c) => sum + c.quantity)})',
                     style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
                     ),
                   ),
-                ),
-                Text(
-                  '-${formatVnd(discount)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.success,
+                  subtitle: Text(
+                    formatVnd(b.comboTotal),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
-
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Divider(
-              height: 1,
-              color: Colors.white.withValues(alpha: 0.1),
-            ),
-          ),
-
-          // Tổng cộng
-          Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Tổng thanh toán',
-                      style: TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Đã bao gồm thuế VAT',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
+                      child: Column(
+                        children: b.combos
+                            .map(
+                              (c) => _LineItem(
+                                leadingEmoji: c.combo.emoji,
+                                label: c.combo.name,
+                                badge: 'x${c.quantity}',
+                                value: formatVnd(c.subtotal),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                   ],
                 ),
               ),
-              Text(
-                formatVnd(b.grandTotal - discount),
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.primary,
-                ),
+            ],
+
+            // Dòng giảm giá (nếu đã áp dụng mã)
+            if (voucher != null && discount > 0) ...[
+              Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.local_offer_outlined,
+                    size: 18,
+                    color: AppColors.success,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Giảm giá (${voucher!.code})',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '-${formatVnd(discount)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.success,
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Divider(
+                height: 1,
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+            ),
+
+            // Tổng cộng
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tổng thanh toán',
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Đã bao gồm thuế VAT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  formatVnd(b.grandTotal - discount),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
