@@ -1,10 +1,10 @@
 // Người phụ trách: Minh - bắp nước & đặt vé
-import '../data/mock/mock_combos.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/booking_data.dart';
 import '../models/combo.dart';
 import '../models/seat.dart';
 import '../models/ticket.dart';
-import 'api_config.dart';
 import 'booking_service.dart';
 import 'ticket_service.dart';
 
@@ -12,32 +12,42 @@ class CheckoutService {
   CheckoutService._();
   static final CheckoutService instance = CheckoutService._();
 
-  /// GET /api/combos
+  SupabaseClient get _db => Supabase.instance.client;
+
+  /// Bảng giá bắp nước lấy từ CSDL, dùng lại khi tính tiền
+  List<Combo> _menu = const [];
+
+  /// Lấy menu bắp nước từ bảng `combos`.
+  /// REST: GET /rest/v1/combos?select=*&order=sort_order.asc
   Future<List<Combo>> getCombos() async {
-    if (ApiConfig.useMockData) {
-      await Future.delayed(ApiConfig.mockDelay);
-      return List<Combo>.of(mockCombos);
-    }
-    throw UnimplementedError('Chưa kết nối API bắp nước');
+    final rows = await _db.from('combos').select().order('sort_order');
+    _menu = rows
+        .map((r) => Combo(
+              id: r['id'] as String,
+              name: r['name'] as String,
+              description: r['description'] as String? ?? '',
+              price: (r['price'] as num).toInt(),
+              emoji: r['emoji'] as String? ?? '🍿',
+              tag: r['tag'] as String?,
+            ))
+        .toList();
+    return _menu;
   }
 
-  /// POST /api/tickets/book  (body = booking.toJson())
+  /// Đặt vé: khóa ghế -> tính tiền -> lưu vé.
   Future<Ticket> bookTicket({
     required BookingData booking,
     required String paymentMethod,
     required String userId,
   }) async {
-    if (!ApiConfig.useMockData) {
-      throw UnimplementedError('Chưa kết nối API đặt vé');
-    }
-    await Future.delayed(const Duration(milliseconds: 1200));
+    // 1. Khóa ghế trên CSDL. Ghế vừa bị người khác mua -> SeatConflictException
+    await BookingService.instance
+        .reserveSeats(booking.showtime.id, booking.seatIds);
 
-    // --- Những việc dưới đây là việc của SERVER, mock lại để demo ---
-    // 1. Kiểm tra & khóa ghế (ném SeatConflictException nếu trùng)
-    BookingService.instance.reserveSeats(booking.showtime.id, booking.seatIds);
-    // 2. Tự tính tiền từ bảng giá, không tin tổng tiền app gửi lên
-    final total = _serverSideTotal(booking);
-    // 3. Lưu vé vào lịch sử của người dùng
+    // 2. Tính lại tiền theo bảng giá, không dùng số tiền màn hình gửi sang
+    final total = _calculateTotal(booking);
+
+    // 3. Lưu vé vào bảng tickets
     final ticket = Ticket(
       id: _newTicketCode(),
       userId: userId,
@@ -49,18 +59,21 @@ class CheckoutService {
       paymentMethod: paymentMethod,
       bookedAt: DateTime.now(),
     );
-    TicketService.instance.saveTicket(ticket);
+    await TicketService.instance.saveTicket(ticket);
     return ticket;
   }
 
-  int _serverSideTotal(BookingData booking) {
+  int _calculateTotal(BookingData booking) {
     var total = 0;
     for (final seat in booking.seats) {
       total += seatPrice(seat.type, booking.showtime.basePrice);
     }
     for (final item in booking.combos) {
-      final combo = mockCombos.firstWhere((c) => c.id == item.combo.id);
-      total += combo.price * item.quantity;
+      var price = item.combo.price;
+      for (final c in _menu) {
+        if (c.id == item.combo.id) price = c.price;
+      }
+      total += price * item.quantity;
     }
     return total;
   }
