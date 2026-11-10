@@ -1,16 +1,23 @@
 // Người phụ trách: Tính (Nhóm trưởng)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 
+import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ticket_provider.dart';
 import 'screens/main_shell.dart';
 import 'screens/profile/login_screen.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
   // Đảm bảo các dịch vụ nền tảng của Flutter Engine sẵn sàng trước khi chạy app
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Khởi tạo kết nối Firebase theo cấu hình đa nền tảng
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(
     MultiProvider(

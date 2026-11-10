@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "506664194490",
+    "project_id": "cinego-57656",
+    "storage_bucket": "cinego-57656.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:506664194490:android:0cc88c3781879cf91b8d83",
+        "android_client_info": {
+          "package_name": "com.example.cinema_booking_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCL1Hi8xcjmrSRje3Oe-a3ULbkvFojR2XU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
