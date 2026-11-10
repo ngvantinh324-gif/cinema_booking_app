@@ -9,6 +9,7 @@ class AgeBadge extends StatelessWidget {
 
   Color get _color => switch (rating) {
         'P' => const Color(0xFF2ECC71),
+        'K' => const Color(0xFF3498DB),
         'T13' => const Color(0xFFF1C40F),
         'T16' => const Color(0xFFFF8C00),
         'T18' => const Color(0xFFE74C3C),

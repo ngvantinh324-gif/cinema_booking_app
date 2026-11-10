@@ -7,3 +7,6 @@ build/
 *.iml
 .vscode/
 pubspec.lock
+
+# Key TMDB rieng cua tung nguoi - KHONG commit (xem tmdb.example.json)
+tmdb.json

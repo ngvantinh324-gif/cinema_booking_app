@@ -1,5 +1,6 @@
 // Người phụ trách: Triết
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../models/movie.dart';
@@ -20,11 +21,31 @@ class MovieDetailScreen extends StatefulWidget {
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _expanded = false;
 
-  void _openTrailer() {
-    // Giai đoạn 2: dùng url_launcher mở movie.trailerUrl trên YouTube
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Trailer sẽ mở YouTube khi tích hợp url_launcher')),
-    );
+  /// Mở trailer bằng app YouTube (hoặc trình duyệt nếu máy không có YouTube)
+  Future<void> _openTrailer() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final url = widget.movie.trailerUrl;
+    if (url == null || url.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Phim này chưa có trailer')),
+      );
+      return;
+    }
+
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      opened = false;
+    }
+    if (!opened) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Không mở được trailer, thử lại sau')),
+      );
+    }
   }
 
   @override
@@ -244,11 +265,15 @@ class _TrailerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final youtubeKey = movie.youtubeKey;
+    final hasTrailer = movie.trailerUrl != null;
+
     return GestureDetector(
       onTap: onTap,
       child: AspectRatio(
         aspectRatio: 16 / 9,
         child: Container(
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
@@ -258,7 +283,20 @@ class _TrailerCard extends StatelessWidget {
             ),
           ),
           child: Stack(
+            fit: StackFit.expand,
             children: [
+              // Ảnh thu nhỏ của video YouTube (nếu có)
+              if (youtubeKey != null)
+                Image.network(
+                  'https://img.youtube.com/vi/$youtubeKey/hqdefault.jpg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
+                ),
+              if (youtubeKey != null)
+                const DecoratedBox(
+                  decoration: BoxDecoration(color: Color(0x55000000)),
+                ),
               Center(
                 child: Container(
                   width: 64,
@@ -280,12 +318,12 @@ class _TrailerCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const Positioned(
+              Positioned(
                 left: 14,
                 bottom: 12,
                 child: Text(
-                  'Trailer chính thức',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  hasTrailer ? 'Trailer chính thức' : 'Chưa có trailer',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
