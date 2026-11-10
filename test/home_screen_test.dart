@@ -1,4 +1,5 @@
 import 'package:cinema_booking_app/data/mock/mock_movies.dart';
+import 'package:cinema_booking_app/models/app_user.dart';
 import 'package:cinema_booking_app/providers/auth_provider.dart';
 import 'package:cinema_booking_app/screens/home/home_screen.dart';
 import 'package:cinema_booking_app/screens/home/movie_search.dart';
@@ -8,8 +9,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-Widget _app() => ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+/// AuthProvider thật cần Supabase đã khởi tạo; trang chủ chỉ đọc tên người dùng
+class _FakeAuthProvider extends ChangeNotifier implements AuthProvider {
+  @override
+  AppUser? get currentUser => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Widget _app() => ChangeNotifierProvider<AuthProvider>(
+      create: (_) => _FakeAuthProvider(),
       child: const MaterialApp(home: HomeScreen()),
     );
 

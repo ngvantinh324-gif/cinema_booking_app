@@ -1,52 +1,139 @@
 // Người phụ trách: Triết
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../data/mock/mock_movies.dart';
 import '../models/movie.dart';
+import 'api_config.dart';
+import 'tmdb_api.dart';
 
+/// Nguồn phim theo thứ tự ưu tiên:
+/// 1. TMDB (phim thật đang chiếu / sắp chiếu tại Việt Nam) - khi có key
+/// 2. Bảng `movies` trên Supabase - khi chưa có key hoặc TMDB lỗi
+/// 3. Dữ liệu mock trong máy - khi mất mạng hẳn, để app không bị trắng màn hình
 class MovieService {
-  // Singleton instance phục vụ tương thích cho home_screen
-  static final MovieService instance = MovieService();
+  MovieService._();
+  static final MovieService instance = MovieService._();
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  /// Số phim lấy về mỗi tab (mỗi phim tốn 1 request chi tiết TMDB)
+  static const int _maxNowShowing = 12;
+  static const int _maxComingSoon = 10;
+  static const Duration _cacheTtl = Duration(minutes: 10);
 
-  MovieService();
+  final TmdbApi _tmdb = TmdbApi();
+  List<Movie>? _cache;
+  DateTime? _cachedAt;
 
-  /// Lấy danh sách phim đang chiếu từ bảng `movies`.
-  Future<List<Movie>> getNowShowing({bool forceRefresh = false}) async {
-    final response = await _supabase
-        .from('movies')
-        .select()
-        .eq('status', 'now_showing')
-        .order('release_date', ascending: false);
-    return (response as List).map((json) => Movie.fromJson(json)).toList();
+  /// Lấy client khi cần (không giữ sẵn) để test/máy chưa khởi tạo Supabase không bị lỗi
+  SupabaseClient get _supabase => Supabase.instance.client;
+
+  /// Tất cả phim (đang chiếu trước, sắp chiếu sau)
+  Future<List<Movie>> getMovies({
+    MovieStatus? status,
+    bool forceRefresh = false,
+  }) async {
+    final all = await _loadAll(forceRefresh: forceRefresh);
+    if (status == null) return List<Movie>.of(all);
+    return all.where((m) => m.status == status).toList();
   }
 
-  /// Lấy danh sách phim sắp chiếu từ bảng `movies`.
-  Future<List<Movie>> getComingSoon({bool forceRefresh = false}) async {
-    final response = await _supabase
-        .from('movies')
-        .select()
-        .eq('status', 'coming_soon')
-        .order('release_date', ascending: true);
-    return (response as List).map((json) => Movie.fromJson(json)).toList();
-  }
+  Future<List<Movie>> getNowShowing({bool forceRefresh = false}) =>
+      getMovies(status: MovieStatus.nowShowing, forceRefresh: forceRefresh);
 
-  /// Lấy tất cả phim từ bảng `movies`.
-  Future<List<Movie>> getMovies({bool forceRefresh = false}) async {
-    final response = await _supabase
-        .from('movies')
-        .select()
-        .order('release_date', ascending: false);
-    return (response as List).map((json) => Movie.fromJson(json)).toList();
-  }
+  Future<List<Movie>> getComingSoon({bool forceRefresh = false}) =>
+      getMovies(status: MovieStatus.comingSoon, forceRefresh: forceRefresh);
 
-  /// Lấy thông tin chi tiết một phim theo id từ bảng `movies`.
+  /// Tìm phim theo id (dùng cache, không gọi lại API)
   Future<Movie?> getMovieById(String id) async {
-    final response = await _supabase
+    final movies = await getMovies();
+    for (final m in movies) {
+      if (m.id == id) return m;
+    }
+    return null;
+  }
+
+  Future<List<Movie>> _loadAll({required bool forceRefresh}) async {
+    final cache = _cache;
+    final cachedAt = _cachedAt;
+    if (!forceRefresh &&
+        cache != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _cacheTtl) {
+      return cache;
+    }
+
+    if (TmdbApi.isConfigured) {
+      try {
+        final movies = await _loadFromTmdb();
+        if (movies.isNotEmpty) return _remember(movies);
+      } catch (e) {
+        debugPrint('Không tải được phim từ TMDB, chuyển sang Supabase: $e');
+      }
+    }
+
+    try {
+      final movies = await _loadFromSupabase();
+      if (movies.isNotEmpty) return _remember(movies);
+    } catch (e) {
+      debugPrint('Không tải được phim từ Supabase, dùng dữ liệu mock: $e');
+    }
+
+    await Future.delayed(ApiConfig.mockDelay);
+    return List<Movie>.of(mockMovies);
+  }
+
+  List<Movie> _remember(List<Movie> movies) {
+    _cache = movies;
+    _cachedAt = DateTime.now();
+    return movies;
+  }
+
+  /// REST: GET /rest/v1/movies?order=release_date
+  Future<List<Movie>> _loadFromSupabase() async {
+    final rows = await _supabase
         .from('movies')
         .select()
-        .eq('id', id)
-        .maybeSingle();
-    if (response == null) return null;
-    return Movie.fromJson(response);
+        .order('release_date', ascending: false);
+    final movies = rows.map(Movie.fromJson).toList();
+    final comingSoon = movies.where((m) => !m.isNowShowing).toList()
+      ..sort((a, b) => a.releaseDate.compareTo(b.releaseDate));
+    return [...movies.where((m) => m.isNowShowing), ...comingSoon];
+  }
+
+  Future<List<Movie>> _loadFromTmdb() async {
+    final lists = await Future.wait([
+      _tmdb.movieList('now_playing'),
+      _tmdb.movieList('upcoming'),
+    ]);
+
+    final nowIds =
+        lists[0].map((m) => m['id'] as int).take(_maxNowShowing).toList();
+    final soonIds = lists[1]
+        .map((m) => m['id'] as int)
+        .where((id) => !nowIds.contains(id))
+        .take(_maxComingSoon)
+        .toList();
+
+    final results = await Future.wait([
+      for (final id in nowIds) _detailsOrNull(id, MovieStatus.nowShowing),
+      for (final id in soonIds) _detailsOrNull(id, MovieStatus.comingSoon),
+    ]);
+    final movies = results.whereType<Movie>().toList();
+
+    // Sắp chiếu: phim ra rạp sớm nhất lên trước
+    final comingSoon = movies.where((m) => !m.isNowShowing).toList()
+      ..sort((a, b) => a.releaseDate.compareTo(b.releaseDate));
+    return [...movies.where((m) => m.isNowShowing), ...comingSoon];
+  }
+
+  /// Lỗi 1 phim thì bỏ qua phim đó, không làm hỏng cả danh sách
+  Future<Movie?> _detailsOrNull(int id, MovieStatus status) async {
+    try {
+      final json = await _tmdb.movieDetails(id);
+      return Movie.fromTmdb(json, status: status);
+    } catch (e) {
+      debugPrint('Bỏ qua phim TMDB $id: $e');
+      return null;
+    }
   }
 }
