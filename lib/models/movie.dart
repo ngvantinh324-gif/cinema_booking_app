@@ -45,6 +45,10 @@ class Movie {
 
   String get genreText => genres.join(', ');
 
+  /// Getter tương thích ngược cho movie_poster và movie_detail_screen
+  String get backdropUrl => posterUrl ?? '';
+  String? get youtubeKey => trailerUrl;
+
   /// Chuyển một dòng của bảng `movies` (Supabase trả về JSON) thành Movie.
   factory Movie.fromJson(Map<String, dynamic> json) {
     final colors = (json['poster_colors'] as List? ?? const [])
@@ -73,6 +77,32 @@ class Movie {
           ? colors
           : const [Color(0xFF2C3E50), Color(0xFF000000)],
       emoji: json['emoji'] as String? ?? '🎬',
+    );
+  }
+
+  /// Hàm tương thích ngược cho unit test cũ (test/movie_test.dart)
+  factory Movie.fromTmdb(
+    Map<String, dynamic> json, {
+    String? youtubeKey,
+    MovieStatus status = MovieStatus.nowShowing,
+  }) {
+    final movie = Movie.fromJson(json);
+    return Movie(
+      id: movie.id,
+      title: movie.title,
+      genres: movie.genres,
+      durationMinutes: movie.durationMinutes,
+      ageRating: movie.ageRating,
+      rating: movie.rating,
+      status: status,
+      releaseDate: movie.releaseDate,
+      director: movie.director,
+      cast: movie.cast,
+      description: movie.description,
+      trailerUrl: youtubeKey ?? movie.trailerUrl,
+      posterUrl: movie.posterUrl,
+      posterColors: movie.posterColors,
+      emoji: movie.emoji,
     );
   }
 

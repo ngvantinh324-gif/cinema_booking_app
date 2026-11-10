@@ -1,31 +1,52 @@
 // Người phụ trách: Triết
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../models/movie.dart';
 
 class MovieService {
-  MovieService._();
-  static final MovieService instance = MovieService._();
+  // Singleton instance phục vụ tương thích cho home_screen
+  static final MovieService instance = MovieService();
 
-  SupabaseClient get _db => Supabase.instance.client;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Lấy danh sách phim từ bảng `movies`.
-  /// REST: GET /rest/v1/movies?select=*&status=eq.now_showing&order=release_date.desc
-  Future<List<Movie>> getMovies({MovieStatus? status}) async {
-    var query = _db.from('movies').select();
-    if (status != null) {
-      query = query.eq(
-        'status',
-        status == MovieStatus.comingSoon ? 'coming_soon' : 'now_showing',
-      );
-    }
-    final rows = await query.order('release_date', ascending: false);
-    return rows.map(Movie.fromJson).toList();
+  MovieService();
+
+  /// Lấy danh sách phim đang chiếu từ bảng `movies`.
+  Future<List<Movie>> getNowShowing({bool forceRefresh = false}) async {
+    final response = await _supabase
+        .from('movies')
+        .select()
+        .eq('status', 'now_showing')
+        .order('release_date', ascending: false);
+    return (response as List).map((json) => Movie.fromJson(json)).toList();
   }
 
-  /// REST: GET /rest/v1/movies?select=*&id=eq.<id>
+  /// Lấy danh sách phim sắp chiếu từ bảng `movies`.
+  Future<List<Movie>> getComingSoon({bool forceRefresh = false}) async {
+    final response = await _supabase
+        .from('movies')
+        .select()
+        .eq('status', 'coming_soon')
+        .order('release_date', ascending: true);
+    return (response as List).map((json) => Movie.fromJson(json)).toList();
+  }
+
+  /// Lấy tất cả phim từ bảng `movies`.
+  Future<List<Movie>> getMovies({bool forceRefresh = false}) async {
+    final response = await _supabase
+        .from('movies')
+        .select()
+        .order('release_date', ascending: false);
+    return (response as List).map((json) => Movie.fromJson(json)).toList();
+  }
+
+  /// Lấy thông tin chi tiết một phim theo id từ bảng `movies`.
   Future<Movie?> getMovieById(String id) async {
-    final row = await _db.from('movies').select().eq('id', id).maybeSingle();
-    return row == null ? null : Movie.fromJson(row);
+    final response = await _supabase
+        .from('movies')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+    if (response == null) return null;
+    return Movie.fromJson(response);
   }
 }

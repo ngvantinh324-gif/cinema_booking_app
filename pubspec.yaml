@@ -16,6 +16,8 @@ dependencies:
   firebase_auth: ^7.0.1
   cloud_firestore: ^7.1.0
   supabase_flutter: ^2.18.3
+  url_launcher: ^6.3.3
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

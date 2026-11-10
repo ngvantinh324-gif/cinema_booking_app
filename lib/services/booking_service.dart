@@ -35,7 +35,7 @@ class BookingService {
   }
 
   /// Sơ đồ ghế: ghế đã bán lấy từ bảng `booked_seats` trên Supabase.
-  /// REST: GET /rest/v1/booked_seats?select=seat_id&showtime_id=eq.<id>
+  /// REST: `GET /rest/v1/booked_seats?select=seat_id&showtime_id=eq.<id>`
   Future<SeatLayout> getSeatLayout(String showtimeId) async {
     final rows = await _db
         .from('booked_seats')
@@ -49,7 +49,7 @@ class BookingService {
   }
 
   /// Khóa ghế khi đặt vé.
-  /// REST: POST /rest/v1/booked_seats. Khóa chính (showtime_id, seat_id)
+  /// REST: `POST /rest/v1/booked_seats`. Khóa chính (showtime_id, seat_id)
   /// đảm bảo 2 người không thể mua trùng 1 ghế: ai đến sau sẽ bị lỗi 23505.
   Future<void> reserveSeats(String showtimeId, List<String> seatIds) async {
     final walkIn = _walkInSeats(showtimeId);
