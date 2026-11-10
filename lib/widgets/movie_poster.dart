@@ -10,19 +10,26 @@ class MoviePoster extends StatelessWidget {
     required this.movie,
     this.emojiSize = 56,
     this.showTitle = false,
+    this.preferBackdrop = false,
   });
 
   final Movie movie;
   final double emojiSize;
   final bool showTitle;
 
+  /// Banner ngang: ưu tiên ảnh backdrop thay cho poster dọc
+  final bool preferBackdrop;
+
   @override
   Widget build(BuildContext context) {
-    final url = movie.posterUrl;
+    final url = (preferBackdrop ? movie.backdropUrl : null) ?? movie.posterUrl;
     if (url != null && url.isNotEmpty) {
       return Image.network(
         url,
         fit: BoxFit.cover,
+        // Đang tải ảnh thì hiện poster gradient, tải xong mới thay ảnh thật
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : _placeholder(),
         errorBuilder: (context, error, stackTrace) => _placeholder(),
       );
     }

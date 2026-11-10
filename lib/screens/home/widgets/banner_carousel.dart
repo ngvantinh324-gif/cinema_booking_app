@@ -109,7 +109,7 @@ class _BannerItem extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              MoviePoster(movie: movie, emojiSize: 72),
+              MoviePoster(movie: movie, emojiSize: 72, preferBackdrop: true),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -143,7 +143,10 @@ class _BannerItem extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${movie.genreText} • ${movie.durationText}',
+                            [
+                              if (movie.genres.isNotEmpty) movie.genreText,
+                              movie.durationText,
+                            ].join(' • '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

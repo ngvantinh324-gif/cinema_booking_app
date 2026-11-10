@@ -28,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _reload() {
     setState(() {
-      _moviesFuture = MovieService.instance.getMovies();
+      _moviesFuture = MovieService.instance.getMovies(forceRefresh: true);
     });
   }
 

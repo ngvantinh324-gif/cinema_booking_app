@@ -22,6 +22,17 @@ Tài khoản demo: **demo@hutech.edu.vn / 123456** (màn đăng nhập có nút 
 
 Trước khi push code: chạy `flutter analyze` và `flutter test`.
 
+### Phim thật từ TMDB (tùy chọn)
+
+Không có key thì app tự dùng phim mock, vẫn chạy bình thường.
+
+1. Lấy API Key (v3) miễn phí tại themoviedb.org → Settings → API.
+2. Chép `tmdb.example.json` thành `tmdb.json` rồi dán key vào. File này đã nằm trong `.gitignore`, **không commit key**.
+3. Chạy: `flutter run --dart-define-from-file=tmdb.json`
+   (Android Studio: Run → Edit Configurations… → main.dart → *Additional run args* điền `--dart-define-from-file=tmdb.json`).
+
+App gọi `api.tmdb.org` vì `api.themoviedb.org` bị nhà mạng ở Việt Nam chặn.
+
 ## Kịch bản demo trước thầy (khoảng 3 phút)
 
 1. Đăng nhập sai mật khẩu → báo lỗi; nhập email sai định dạng → form báo đỏ ngay.
