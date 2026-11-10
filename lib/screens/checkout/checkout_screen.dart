@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/booking_data.dart';
 import '../../models/seat.dart';
+import '../../models/voucher.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/ticket_provider.dart';
 import '../../services/booking_service.dart';
@@ -79,6 +80,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _methodId = _methods.first.id;
   bool _processing = false;
 
+  // Mã giảm giá
+  final _voucherCtrl = TextEditingController();
+  Voucher? _voucher;
+  bool _checkingVoucher = false;
+  String? _voucherError;
+
   // Đồng hồ đếm ngược thời gian giữ ghế (10 phút)
   Timer? _holdTimer;
   int _remainingSeconds = 600;
@@ -104,7 +111,46 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void dispose() {
     _holdTimer?.cancel();
+    _voucherCtrl.dispose();
     super.dispose();
+  }
+
+  /// Số tiền được giảm và số tiền phải trả sau giảm
+  int get _discount => _voucher?.discountFor(widget.booking.grandTotal) ?? 0;
+  int get _payable => widget.booking.grandTotal - _discount;
+
+  Future<void> _applyVoucher() async {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _checkingVoucher = true;
+      _voucherError = null;
+    });
+    try {
+      final voucher = await CheckoutService.instance
+          .checkVoucher(_voucherCtrl.text, widget.booking.grandTotal);
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      setState(() => _voucher = voucher);
+    } on VoucherException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _voucher = null;
+        _voucherError = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _voucherError = 'Không kiểm tra được mã, thử lại sau');
+    } finally {
+      if (mounted) setState(() => _checkingVoucher = false);
+    }
+  }
+
+  void _removeVoucher() {
+    setState(() {
+      _voucher = null;
+      _voucherError = null;
+      _voucherCtrl.clear();
+    });
   }
 
   String get _formattedHoldTime {
@@ -124,6 +170,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         booking: widget.booking,
         paymentMethod: _methodLabel,
         userId: user.id,
+        voucherCode: _voucher?.code,
       );
       if (!mounted) return;
       context.read<TicketProvider>().addTicket(ticket);
@@ -176,6 +223,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       Navigator.of(context)
         ..pop()
         ..pop();
+    } on VoucherException catch (e) {
+      // Mã giảm giá hết hiệu lực ngay lúc thanh toán
+      if (!mounted) return;
+      setState(() {
+        _processing = false;
+        _voucher = null;
+        _voucherError = e.message;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${e.message}. Vui lòng kiểm tra lại.')),
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _processing = false);
@@ -251,7 +309,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(height: 18),
 
             // Chi tiết hóa đơn thanh toán
-            _OrderBreakdownCard(booking: b),
+            _OrderBreakdownCard(
+              booking: b,
+              voucher: _voucher,
+              discount: _discount,
+            ),
+            const SizedBox(height: 14),
+
+            // Mã giảm giá
+            _VoucherCard(
+              controller: _voucherCtrl,
+              voucher: _voucher,
+              discount: _discount,
+              checking: _checkingVoucher,
+              error: _voucherError,
+              enabled: !_processing,
+              onApply: _applyVoucher,
+              onRemove: _removeVoucher,
+            ),
             const SizedBox(height: 22),
 
             // Tiêu đề phương thức thanh toán
@@ -334,7 +409,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ],
         ),
         bottomNavigationBar: _BottomCheckoutBar(
-          grandTotal: b.grandTotal,
+          grandTotal: _payable,
           selectedMethod: _selectedMethod,
           processing: _processing,
           onConfirm: _confirm,
@@ -612,9 +687,15 @@ class _TicketPerforationDivider extends StatelessWidget {
 }
 
 class _OrderBreakdownCard extends StatelessWidget {
-  const _OrderBreakdownCard({required this.booking});
+  const _OrderBreakdownCard({
+    required this.booking,
+    this.voucher,
+    this.discount = 0,
+  });
 
   final BookingData booking;
+  final Voucher? voucher;
+  final int discount;
 
   @override
   Widget build(BuildContext context) {
@@ -749,6 +830,38 @@ class _OrderBreakdownCard extends StatelessWidget {
             ),
           ],
 
+          // Dòng giảm giá (nếu đã áp dụng mã)
+          if (voucher != null && discount > 0) ...[
+            Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_offer_outlined,
+                  size: 18,
+                  color: AppColors.success,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Giảm giá (${voucher!.code})',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ),
+                Text(
+                  '-${formatVnd(discount)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+          ],
+
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Divider(
@@ -783,7 +896,7 @@ class _OrderBreakdownCard extends StatelessWidget {
                 ),
               ),
               Text(
-                formatVnd(b.grandTotal),
+                formatVnd(b.grandTotal - discount),
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -1135,6 +1248,141 @@ class _BottomCheckoutBar extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Ô nhập mã giảm giá
+class _VoucherCard extends StatelessWidget {
+  const _VoucherCard({
+    required this.controller,
+    required this.voucher,
+    required this.discount,
+    required this.checking,
+    required this.error,
+    required this.enabled,
+    required this.onApply,
+    required this.onRemove,
+  });
+
+  final TextEditingController controller;
+  final Voucher? voucher;
+  final int discount;
+  final bool checking;
+  final String? error;
+  final bool enabled;
+  final VoidCallback onApply;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final applied = voucher;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: applied != null
+              ? AppColors.success.withValues(alpha: 0.6)
+              : Colors.white.withValues(alpha: 0.07),
+        ),
+      ),
+      child: applied != null
+          ? Row(
+              children: [
+                const Icon(Icons.check_circle, color: AppColors.success),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Đã áp dụng ${applied.code} • -${formatVnd(discount)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        applied.description,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Bỏ mã',
+                  onPressed: enabled ? onRemove : null,
+                  icon: const Icon(Icons.close, color: Colors.white54),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.local_offer_outlined,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Mã giảm giá',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        enabled: enabled && !checking,
+                        textCapitalization: TextCapitalization.characters,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => onApply(),
+                        decoration: InputDecoration(
+                          hintText: 'Nhập mã giảm giá',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.black.withValues(alpha: 0.2),
+                          errorText: error,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 96,
+                      height: 46,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(0, 46),
+                          padding: EdgeInsets.zero,
+                        ),
+                        onPressed: enabled && !checking ? onApply : null,
+                        child: checking
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Áp dụng'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 }

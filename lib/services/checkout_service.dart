@@ -1,10 +1,12 @@
-// Người phụ trách: Minh - bắp nước & đặt vé
+// Người phụ trách: Minh - bắp nước, mã giảm giá & đặt vé
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/utils/formatters.dart';
 import '../models/booking_data.dart';
 import '../models/combo.dart';
 import '../models/seat.dart';
 import '../models/ticket.dart';
+import '../models/voucher.dart';
 import 'booking_service.dart';
 import 'ticket_service.dart';
 
@@ -34,18 +36,52 @@ class CheckoutService {
     return _menu;
   }
 
-  /// Đặt vé: khóa ghế -> tính tiền -> lưu vé.
+  /// Kiểm tra mã giảm giá trên bảng `vouchers`.
+  /// REST: GET /rest/v1/vouchers?select=*&code=eq.{mã}
+  Future<Voucher> checkVoucher(String code, int subtotal) async {
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) {
+      throw const VoucherException('Vui lòng nhập mã giảm giá');
+    }
+    final row = await _db
+        .from('vouchers')
+        .select()
+        .eq('code', normalized)
+        .maybeSingle();
+    if (row == null) {
+      throw const VoucherException('Mã giảm giá không tồn tại');
+    }
+    final voucher = Voucher.fromJson(row);
+    if (voucher.isExpired) {
+      throw const VoucherException('Mã giảm giá đã hết hạn');
+    }
+    if (subtotal < voucher.minOrder) {
+      throw VoucherException(
+        'Mã chỉ áp dụng cho đơn từ ${formatVnd(voucher.minOrder)}',
+      );
+    }
+    return voucher;
+  }
+
+  /// Đặt vé: khóa ghế -> tính tiền (kể cả giảm giá) -> lưu vé.
   Future<Ticket> bookTicket({
     required BookingData booking,
     required String paymentMethod,
     required String userId,
+    String? voucherCode,
   }) async {
-    // 1. Khóa ghế trên CSDL. Ghế vừa bị người khác mua -> SeatConflictException
+    // 1. Tính tiền theo bảng giá, kiểm tra lại mã giảm giá trên CSDL
+    //    (không tin số tiền màn hình gửi sang). Mã lỗi thì dừng trước khi khóa ghế.
+    final subtotal = _calculateTotal(booking);
+    var discount = 0;
+    if (voucherCode != null) {
+      final voucher = await checkVoucher(voucherCode, subtotal);
+      discount = voucher.discountFor(subtotal);
+    }
+
+    // 2. Khóa ghế trên CSDL. Ghế vừa bị người khác mua -> SeatConflictException
     await BookingService.instance
         .reserveSeats(booking.showtime.id, booking.seatIds);
-
-    // 2. Tính lại tiền theo bảng giá, không dùng số tiền màn hình gửi sang
-    final total = _calculateTotal(booking);
 
     // 3. Lưu vé vào bảng tickets
     final ticket = Ticket(
@@ -55,7 +91,7 @@ class CheckoutService {
       showtime: booking.showtime,
       seats: booking.seats,
       combos: booking.combos,
-      totalPaid: total,
+      totalPaid: subtotal - discount,
       paymentMethod: paymentMethod,
       bookedAt: DateTime.now(),
     );

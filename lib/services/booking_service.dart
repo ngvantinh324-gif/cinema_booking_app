@@ -1,6 +1,4 @@
 // Người phụ trách: Tính (Nhóm trưởng) - lịch chiếu & sơ đồ ghế
-import 'dart:math';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/mock/mock_cinemas.dart';
@@ -42,7 +40,6 @@ class BookingService {
         .select('seat_id')
         .eq('showtime_id', showtimeId);
     final booked = <String>{
-      ..._walkInSeats(showtimeId),
       for (final row in rows) row['seat_id'] as String,
     };
     return SeatLayout(rows: _buildRows(), bookedSeatIds: booked);
@@ -52,10 +49,6 @@ class BookingService {
   /// REST: `POST /rest/v1/booked_seats`. Khóa chính (showtime_id, seat_id)
   /// đảm bảo 2 người không thể mua trùng 1 ghế: ai đến sau sẽ bị lỗi 23505.
   Future<void> reserveSeats(String showtimeId, List<String> seatIds) async {
-    final walkIn = _walkInSeats(showtimeId);
-    final clash = seatIds.where(walkIn.contains).toList();
-    if (clash.isNotEmpty) throw SeatConflictException(clash);
-
     try {
       await _db.from('booked_seats').insert([
         for (final id in seatIds) {'showtime_id': showtimeId, 'seat_id': id},
@@ -85,15 +78,5 @@ class BookingService {
       ),
     ));
     return rows;
-  }
-
-  /// Một ít ghế "khách mua tại quầy" để sơ đồ trông giống rạp thật.
-  Set<String> _walkInSeats(String showtimeId) {
-    final rnd = Random(showtimeId.hashCode);
-    final all = <String>[
-      for (final seatRow in _buildRows())
-        for (final seat in seatRow) seat.id,
-    ]..shuffle(rnd);
-    return all.take(4 + rnd.nextInt(6)).toSet();
   }
 }
