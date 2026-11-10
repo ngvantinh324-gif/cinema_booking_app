@@ -1,6 +1,5 @@
 // Người phụ trách: Triết
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../models/movie.dart';
@@ -8,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/age_badge.dart';
 import '../../widgets/movie_poster.dart';
 import '../booking/showtime_screen.dart';
+import 'widgets/trailer_player_dialog.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   const MovieDetailScreen({super.key, required this.movie});
@@ -21,7 +21,7 @@ class MovieDetailScreen extends StatefulWidget {
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _expanded = false;
 
-  /// Mở trailer bằng app YouTube (hoặc trình duyệt nếu máy không có YouTube)
+  /// Trailer YouTube: phát ngay trong app. Link khác: mở bằng app/trình duyệt.
   Future<void> _openTrailer() async {
     final messenger = ScaffoldMessenger.of(context);
     final url = widget.movie.trailerUrl;
@@ -32,15 +32,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       return;
     }
 
-    var opened = false;
-    try {
-      opened = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
-    } catch (_) {
-      opened = false;
+    if (widget.movie.youtubeKey != null) {
+      await showTrailerPlayer(context, widget.movie);
+      return;
     }
+
+    final opened = await openTrailerExternally(url);
     if (!opened) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Không mở được trailer, thử lại sau')),
