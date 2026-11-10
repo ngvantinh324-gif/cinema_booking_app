@@ -90,10 +90,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   List<Seat> get _selectedSeats {
     final layout = _layout;
     if (layout == null) return const [];
-    final seats = _selected
-        .map(layout.findSeat)
-        .whereType<Seat>()
-        .toList()
+    final seats = _selected.map(layout.findSeat).whereType<Seat>().toList()
       ..sort((a, b) {
         final byRow = a.row.compareTo(b.row);
         return byRow != 0 ? byRow : a.number.compareTo(b.number);
@@ -263,17 +260,23 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget item(Color fill, Color border, String text) => Row(
+    Widget item(Color fill, Color border, String text, {bool sold = false}) =>
+        Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: 16,
               height: 16,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: fill,
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: border),
               ),
+              // Ghế đã bán: hiện dấu X giống trên sơ đồ ghế
+              child: sold
+                  ? const Icon(Icons.close, size: 12, color: Colors.white54)
+                  : null,
             ),
             const SizedBox(width: 6),
             Text(text, style: const TextStyle(fontSize: 12)),
@@ -289,7 +292,7 @@ class _Legend extends StatelessWidget {
         children: [
           item(AppColors.seatAvailable, Colors.white24, 'Trống'),
           item(AppColors.primary, AppColors.primary, 'Đang chọn'),
-          item(AppColors.seatBooked, Colors.transparent, 'Đã bán'),
+          item(AppColors.seatBooked, Colors.white24, 'Đã bán', sold: true),
           item(AppColors.seatAvailable, AppColors.vip, 'VIP'),
           item(AppColors.seatAvailable, AppColors.couple, 'Ghế đôi'),
         ],

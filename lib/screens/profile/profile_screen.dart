@@ -218,18 +218,20 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-      ),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        leading: Icon(icon, color: color ?? Colors.white70),
-        title: Text(title, style: TextStyle(color: color)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-        onTap: onTap,
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          leading: Icon(icon, color: color ?? Colors.white70),
+          title: Text(title, style: TextStyle(color: color)),
+          trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+          onTap: onTap,
+        ),
       ),
     );
   }

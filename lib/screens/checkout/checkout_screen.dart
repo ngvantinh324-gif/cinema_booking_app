@@ -1347,7 +1347,7 @@ class _VoucherCard extends StatelessWidget {
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => onApply(),
                         decoration: InputDecoration(
-                          hintText: 'Nhập mã, ví dụ HUTECH10',
+                          hintText: 'Nhập mã giảm giá',
                           isDense: true,
                           filled: true,
                           fillColor: Colors.black.withValues(alpha: 0.2),
