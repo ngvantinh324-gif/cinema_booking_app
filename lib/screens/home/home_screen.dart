@@ -7,7 +7,9 @@ import '../../models/movie.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/movie_service.dart';
 import '../../theme/app_theme.dart';
+import 'movie_search.dart';
 import 'widgets/banner_carousel.dart';
+import 'widgets/home_skeleton.dart';
 import 'widgets/movie_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,82 +20,166 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<List<Movie>> _moviesFuture;
+  final TextEditingController _searchController = TextEditingController();
+
+  List<Movie>? _movies;
+  Object? _error;
+  bool _searching = false;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _moviesFuture = MovieService.instance.getMovies();
+    _load();
   }
 
-  void _reload() {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Lần đầu: hiện khung xương. Kéo xuống tải lại: giữ danh sách cũ trên màn hình.
+  Future<void> _load({bool forceRefresh = false}) async {
+    try {
+      final movies =
+          await MovieService.instance.getMovies(forceRefresh: forceRefresh);
+      if (!mounted) return;
+      setState(() {
+        _movies = movies;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e);
+      if (_movies != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không tải lại được danh sách phim')),
+        );
+      }
+    }
+  }
+
+  void _retry() {
     setState(() {
-      _moviesFuture = MovieService.instance.getMovies(forceRefresh: true);
+      _movies = null;
+      _error = null;
+    });
+    _load(forceRefresh: true);
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) {
+        _searchController.clear();
+        _query = '';
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final userName = context.watch<AuthProvider>().currentUser?.name ?? 'bạn';
+    final movies = _movies;
+
+    Widget body;
+    if (movies == null && _error == null) {
+      body = const HomeSkeleton();
+    } else if (movies == null) {
+      body = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Không tải được danh sách phim'),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _retry, child: const Text('Thử lại')),
+          ],
+        ),
+      );
+    } else {
+      body = _buildContent(movies, userName);
+    }
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: FutureBuilder<List<Movie>>(
-          future: _moviesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Không tải được danh sách phim'),
-                    const SizedBox(height: 12),
-                    TextButton(onPressed: _reload, child: const Text('Thử lại')),
-                  ],
-                ),
-              );
-            }
-            final movies = snapshot.data ?? const <Movie>[];
-            final nowShowing = movies.where((m) => m.isNowShowing).toList();
-            final comingSoon = movies.where((m) => !m.isNowShowing).toList();
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: KeyedSubtree(
+            key: ValueKey(movies == null ? 'loading' : 'content'),
+            child: body,
+          ),
+        ),
+      ),
+    );
+  }
 
-            return DefaultTabController(
-              length: 2,
-              child: NestedScrollView(
-                headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                  SliverToBoxAdapter(child: _Header(name: userName)),
-                  SliverToBoxAdapter(
-                    child: BannerCarousel(movies: nowShowing.take(5).toList()),
-                  ),
-                  // Absorber + Injector để lưới phim không bị TabBar ghim che mất
-                  SliverOverlapAbsorber(
-                    handle:
-                        NestedScrollView.sliverOverlapAbsorberHandleFor(context),
-                    sliver: const SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _TabBarDelegate(),
-                    ),
-                  ),
-                ],
-                body: TabBarView(
-                  children: [
-                    _MovieGrid(
-                      key: const PageStorageKey('now'),
-                      movies: nowShowing,
-                    ),
-                    _MovieGrid(
-                      key: const PageStorageKey('soon'),
-                      movies: comingSoon,
-                    ),
-                  ],
+  Widget _buildContent(List<Movie> movies, String userName) {
+    final filtered = movies.where((m) => movieMatches(m, _query)).toList();
+    final nowShowing = filtered.where((m) => m.isNowShowing).toList();
+    final comingSoon = filtered.where((m) => !m.isNowShowing).toList();
+    final bannerMovies =
+        movies.where((m) => m.isNowShowing).take(5).toList();
+    final emptyText =
+        _query.trim().isEmpty ? 'Chưa có phim' : 'Không tìm thấy phim phù hợp';
+
+    return DefaultTabController(
+      length: 2,
+      child: RefreshIndicator(
+        color: AppColors.primary,
+        backgroundColor: AppColors.surface,
+        // Lưới phim nằm trong NestedScrollView + TabBarView nên cuộn ở tầng sâu hơn
+        notificationPredicate: (n) => n.depth <= 2,
+        onRefresh: () => _load(forceRefresh: true),
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: _Header(
+                name: userName,
+                searching: _searching,
+                onSearchTap: _toggleSearch,
+              ),
+            ),
+            if (_searching)
+              SliverToBoxAdapter(
+                child: _SearchField(
+                  controller: _searchController,
+                  onChanged: (value) => setState(() => _query = value),
                 ),
               ),
-            );
-          },
+            // Đang tìm kiếm thì ẩn banner cho gọn
+            if (_query.trim().isEmpty)
+              SliverToBoxAdapter(
+                child: BannerCarousel(movies: bannerMovies),
+              ),
+            // Absorber + Injector để lưới phim không bị TabBar ghim che mất
+            SliverOverlapAbsorber(
+              handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+              sliver: SliverPersistentHeader(
+                pinned: true,
+                delegate: _TabBarDelegate(
+                  nowCount: nowShowing.length,
+                  soonCount: comingSoon.length,
+                  showCounts: _query.trim().isNotEmpty,
+                ),
+              ),
+            ),
+          ],
+          body: TabBarView(
+            children: [
+              _MovieGrid(
+                key: const PageStorageKey('now'),
+                movies: nowShowing,
+                emptyText: emptyText,
+              ),
+              _MovieGrid(
+                key: const PageStorageKey('soon'),
+                movies: comingSoon,
+                emptyText: emptyText,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -101,9 +187,15 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.name});
+  const _Header({
+    required this.name,
+    required this.searching,
+    required this.onSearchTap,
+  });
 
   final String name;
+  final bool searching;
+  final VoidCallback onSearchTap;
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +221,12 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          IconButton(
+            tooltip: searching ? 'Đóng tìm kiếm' : 'Tìm phim',
+            onPressed: onSearchTap,
+            icon: Icon(searching ? Icons.close_rounded : Icons.search_rounded),
+          ),
+          const SizedBox(width: 4),
           CircleAvatar(
             radius: 22,
             backgroundColor: AppColors.primary,
@@ -146,8 +244,60 @@ class _Header extends StatelessWidget {
   }
 }
 
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: TextField(
+        controller: controller,
+        autofocus: true,
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Tên phim, thể loại, diễn viên...',
+          prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) => controller.text.isEmpty
+                ? const SizedBox.shrink()
+                : IconButton(
+                    tooltip: 'Xóa',
+                    icon: const Icon(Icons.clear_rounded),
+                    onPressed: () {
+                      controller.clear();
+                      onChanged('');
+                    },
+                  ),
+          ),
+          filled: true,
+          fillColor: AppColors.surface,
+          isDense: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
-  const _TabBarDelegate();
+  const _TabBarDelegate({
+    required this.nowCount,
+    required this.soonCount,
+    required this.showCounts,
+  });
+
+  final int nowCount;
+  final int soonCount;
+  final bool showCounts;
 
   static const double _height = 52;
 
@@ -163,7 +313,7 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
     return Container(
       color: AppColors.background,
       alignment: Alignment.centerLeft,
-      child: const TabBar(
+      child: TabBar(
         isScrollable: true,
         tabAlignment: TabAlignment.start,
         dividerColor: Colors.transparent,
@@ -171,32 +321,45 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
         indicatorSize: TabBarIndicatorSize.label,
         labelColor: AppColors.primary,
         unselectedLabelColor: AppColors.textSecondary,
-        labelStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        tabs: [Tab(text: 'Đang chiếu'), Tab(text: 'Sắp chiếu')],
+        labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        tabs: [
+          Tab(text: showCounts ? 'Đang chiếu ($nowCount)' : 'Đang chiếu'),
+          Tab(text: showCounts ? 'Sắp chiếu ($soonCount)' : 'Sắp chiếu'),
+        ],
       ),
     );
   }
 
   @override
-  bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => false;
+  bool shouldRebuild(covariant _TabBarDelegate oldDelegate) =>
+      oldDelegate.nowCount != nowCount ||
+      oldDelegate.soonCount != soonCount ||
+      oldDelegate.showCounts != showCounts;
 }
 
 class _MovieGrid extends StatelessWidget {
-  const _MovieGrid({super.key, required this.movies});
+  const _MovieGrid({
+    super.key,
+    required this.movies,
+    required this.emptyText,
+  });
 
   final List<Movie> movies;
+  final String emptyText;
 
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
+      // Luôn cho cuộn để danh sách ngắn/rỗng vẫn kéo xuống tải lại được
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverOverlapInjector(
           handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
         ),
         if (movies.isEmpty)
-          const SliverFillRemaining(
+          SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: Text('Chưa có phim')),
+            child: Center(child: Text(emptyText)),
           )
         else
           SliverPadding(
