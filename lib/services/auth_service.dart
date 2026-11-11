@@ -108,6 +108,7 @@ class AuthService {
       name: meta['name'] as String? ?? email.split('@').first,
       email: email,
       phone: meta['phone'] as String? ?? '',
+      role: u.appMetadata['role'] as String? ?? 'customer',
     );
   }
 

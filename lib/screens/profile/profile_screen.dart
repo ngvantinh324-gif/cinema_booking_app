@@ -8,6 +8,8 @@ import '../../providers/ticket_provider.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/change_password_sheet.dart';
 import 'widgets/edit_profile_sheet.dart';
+import '../admin/admin_dashboard_screen.dart';
+import '../staff/check_in_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -130,6 +132,34 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
+          if (user.role != 'customer')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Vai trò: ${user.roleLabel}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          if (user.isAdmin)
+            _MenuTile(
+              icon: Icons.admin_panel_settings_outlined,
+              title: 'Trang quản trị',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+              ),
+            ),
+          if (user.isStaff)
+            _MenuTile(
+              icon: Icons.qr_code_scanner,
+              title: 'Soát vé',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CheckInScreen()),
+              ),
+            ),
           _MenuTile(
             icon: Icons.edit_outlined,
             title: 'Chỉnh sửa thông tin',
