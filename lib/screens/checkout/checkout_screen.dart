@@ -104,8 +104,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         setState(() => _remainingSeconds--);
       } else {
         timer.cancel();
+        _onHoldExpired();
       }
     });
+  }
+
+  /// Hết 10 phút giữ ghế: báo cho khách và quay về sơ đồ ghế để chọn lại
+  Future<void> _onHoldExpired() async {
+    if (_processing || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hết thời gian giữ ghế'),
+        content: const Text('Bạn đã quá 10 phút. Vui lòng chọn lại ghế.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Chọn lại ghế'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.of(context)
+      ..pop()
+      ..pop();
   }
 
   @override

@@ -10,10 +10,10 @@ class TicketService {
   SupabaseClient get _db => Supabase.instance.client;
 
   /// Lấy vé của người đang đăng nhập.
-  /// REST: GET /rest/v1/tickets?select=*
-  /// KHÔNG gửi user_id lên server: chính sách Row Level Security
-  /// (user_id = auth.uid()) tự lọc theo token đăng nhập, nên không ai
-  /// xem được vé của người khác (chống lỗi IDOR).
+  /// REST: GET /rest/v1/tickets?user_id=eq.{id}
+  /// Lọc theo user_id để nhân viên/quản trị viên chỉ thấy vé của chính họ.
+  /// Bảo mật thật nằm ở Row Level Security: khách hàng dù sửa user_id
+  /// thành của người khác thì server vẫn chỉ trả vé của chính họ.
   Future<List<Ticket>> getMyTickets(String userId) async {
     final rows = await _db
         .from('tickets')
