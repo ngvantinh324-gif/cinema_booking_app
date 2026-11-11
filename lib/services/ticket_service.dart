@@ -18,6 +18,7 @@ class TicketService {
     final rows = await _db
         .from('tickets')
         .select()
+        .eq('user_id', userId)
         .order('created_at', ascending: false);
     final list = rows
         .map((r) => Ticket.fromJson(
